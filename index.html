@@ -6,7 +6,38 @@ const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g
 let state={ids:['83765','83767'],scores:[],weeks:[],teams:{},weekName:'Week 1'},view='gross',seasonView='gross';
 function normalize(x){let o={...state,...x};o.ids=Array.isArray(o.ids)?o.ids:['83765','83767'];o.scores=Array.isArray(o.scores)?o.scores:[];o.weeks=Array.isArray(o.weeks)?o.weeks:[];o.teams=o.teams&&typeof o.teams==='object'?o.teams:{};o.weekName=String(o.weekName||'Week 1');return o}
 function persist(){localStorage.setItem('tsgl-v2',JSON.stringify(state))}
-function load(){fetch('league-data.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(data=>{if(data)state=normalize(data);let local=localStorage.getItem('tsgl-v2');if(local){try{state=normalize(JSON.parse(local))}catch(e){}}else{let old=localStorage.getItem('tsgl-v1');if(old){try{state=normalize(JSON.parse(old))}catch(e){}}}sync()}).catch(()=>{try{state=normalize(JSON.parse(localStorage.getItem('tsgl-v2')||localStorage.getItem('tsgl-v1')||'{}'))}catch(e){}sync()})}
+
+function load(){
+  window.addEventListener('sgl-standings-loaded',function(e){
+    const db=e.detail;
+    const teamNames=Object.fromEntries(db.teams.map(t=>[t.id,t.team_name]));
+    const teams={};
+    for(const p of db.players){
+      teams[p.username.trim().toLowerCase()]=teamNames[p.team_id]||'';
+    }
+    const weeks=db.weeks.filter(w=>w.finalized).sort((a,b)=>a.week_number-b.week_number).map(w=>({
+      name:'Week '+w.week_number,
+      ids:[String(w.tournament_1_id||''),String(w.tournament_2_id||'')],
+      scores:db.scores.filter(s=>s.week_number===w.week_number).map(s=>({
+        player:s.username,
+        club:'',
+        thru:18,
+        gross:s.gross_strokes,
+        net:s.net_strokes
+      }))
+    }));
+    state=normalize({
+      ...state,
+      teams,
+      weeks,
+      weekName:weeks.length?weeks[weeks.length-1].name:'Week 1',
+      scores:weeks.length?weeks[weeks.length-1].scores:[],
+      ids:weeks.length?weeks[weeks.length-1].ids:state.ids
+    });
+    sync();
+  });
+}
+
 function activeWeek(){return state.weeks.find(w=>w.name===state.weekName)}
 function weekScores(){return activeWeek()?.scores||state.scores||[]}
 function sync(){['id1','id2'].forEach((id,i)=>{let val=String(state.ids[i]||'');$(id).value=val;$(id+'Label').textContent=val;for(let type of ['frame','link']){let el=$(type+(i+1)),url=`https://simulatorgolftour.com/embed/tournament/${encodeURIComponent(val)}/standings/${view}?theme=dark`;if(type==='frame'){if(el.src!==url)el.src=url}else el.href=url}});$('weekName').value=state.weekName;$('teamCSV').value='player,team\n'+Object.entries(state.teams).map(([p,t])=>`${p},${t}`).join('\n');render()}
