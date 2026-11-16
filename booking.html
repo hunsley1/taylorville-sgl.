@@ -1,15 +1,253 @@
-<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tee Times | Taylorville SGL</title><style>body{margin:0;background:#101114;color:#f4f0e7;font:16px system-ui}main{max-width:850px;margin:auto;padding:25px}h1,b{color:#e0bb69}a{color:#e0bb69}.card{background:#1d1e21;border:1px solid #55492c;border-radius:14px;padding:20px;margin:18px 0}label{display:block;margin:12px 0 5px}input,select,button{box-sizing:border-box;padding:12px;background:#292a2e;color:white;border:1px solid #75633e;border-radius:8px;font:inherit}input,select{width:100%}button{cursor:pointer;background:#d4ad57;color:#171717;font-weight:700}button:disabled{opacity:.5}li{padding:12px;border-bottom:1px solid #444;overflow-wrap:anywhere}.muted{color:#b9b4a9;font-size:14px}#message{min-height:22px} .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:550px){.grid{grid-template-columns:1fr}}</style><main><p><a href="index.html">← Taylorville SGL standings</a></p><h1>Simulator Tee Times</h1><p>One simulator · Open 24/7 · Reservations from 1 to 6 hours · Central Time</p><section class="card"><h2>Book the simulator</h2><p class="muted">All times are Taylorville, Illinois local time. Select any 30-minute start time. Bookings may cross midnight.</p><form id="form"><label for="player">Player name</label><input id="player" maxlength="80" required autocomplete="name"><div class="grid"><div><label for="date">Date</label><input id="date" type="date" required></div><div><label for="start">Start time</label><select id="start"></select></div></div><div class="grid"><div><label for="duration">Duration</label><select id="duration"></select></div><div><label for="purpose">Purpose</label><select id="purpose"><option>League match</option><option>Practice</option><option>Warm-up and match</option><option>Other</option></select></div></div><p id="preview" class="muted"></p><button id="book" type="submit">Reserve tee time</button></form><p id="message" role="status"></p><p class="muted">Keep the cancellation code shown after booking. Anyone with that code can cancel the reservation.</p></section><section class="card"><h2>Shared schedule</h2><label for="viewdate">View reservations for</label><input id="viewdate" type="date"><p><button id="refresh" type="button">Refresh calendar</button></p><ul id="schedule"><li>Connect Supabase to load reservations.</li></ul></section><section class="card"><h2>Cancel your reservation</h2><form id="cancelForm"><label for="cancelId">Reservation ID</label><input id="cancelId" required placeholder="ID from booking confirmation"><label for="cancelCode">Cancellation code</label><input id="cancelCode" required placeholder="Private code from booking confirmation"><p><button type="submit">Cancel booking</button></p></form><p id="cancelMessage" role="status"></p></section><p class="muted">Bookings become live only after the Supabase project, SQL setup, and configuration are completed. Do not enter real bookings until connected.</p></main><script src="booking-config.js"></script><script>
-const $=id=>document.getElementById(id), cfg=window.SGL_BOOKING_CONFIG||{};const ready=!!(cfg.url&&cfg.anonKey&&!cfg.url.includes('YOUR_'));const tz='America/Chicago';
-function chicagoDate(d=new Date()){const p=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(d).filter(x=>x.type!=='literal').map(x=>[x.type,x.value]));return p.year+'-'+p.month+'-'+p.day}
-function localDisplay(iso){return new Intl.DateTimeFormat('en-US',{timeZone:tz,month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(iso))}
-function isoFromChicago(date,time){ // Convert a wall-clock time with DST validation
- const [h,m]=time.split(':').map(Number), wall=Date.parse(date+'T'+time+':00Z');let guess=wall+6*3600000;
- for(let i=0;i<4;i++){const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(guess)).filter(x=>x.type!=='literal').map(x=>[x.type,Number(x.value)]));const seen=Date.UTC(parts.year,parts.month-1,parts.day,parts.hour,parts.minute);guess+=wall-seen;if(seen===wall)break}
- const fmt=new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(guess));const p=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(guess)).filter(x=>x.type!=='literal').map(x=>[x.type,Number(x.value)]));if(p.year!==Number(date.slice(0,4))||p.month!==Number(date.slice(5,7))||p.day!==Number(date.slice(8,10))||p.hour!==h||p.minute!==m)throw Error('This time does not exist due to daylight saving time. Select another time.');return new Date(guess).toISOString()}
-async function api(path,options={}){if(!ready)throw Error('Booking database is not configured yet. See README.md.');const r=await fetch(cfg.url.replace(/\/$/,'')+'/rest/v1/'+path,{...options,headers:{apikey:cfg.anonKey,Authorization:'Bearer '+cfg.anonKey,'Content-Type':'application/json',...(options.headers||{})}});const body=await r.text();let data;try{data=body?JSON.parse(body):null}catch{data=body}if(!r.ok)throw Error(data?.message||data?.error||'Request failed');return data}
-for(let i=0;i<48;i++){const h=Math.floor(i/2),m=i%2*30,v=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');const opt=document.createElement('option');opt.value=v;opt.textContent=new Date(Date.UTC(2020,0,1,h,m)).toLocaleTimeString('en-US',{timeZone:'UTC',hour:'numeric',minute:'2-digit'});$('start').append(opt)}for(let i=2;i<=12;i++){const opt=document.createElement('option');opt.value=i*30;opt.textContent=(i/2)+' hour'+(i===2?'':'s');if(i===4)opt.selected=true;$('duration').append(opt)}$('date').value=chicagoDate();$('viewdate').value=chicagoDate();$('start').value='18:00';
-function preview(){try{const s=isoFromChicago($('date').value,$('start').value),e=new Date(Date.parse(s)+Number($('duration').value)*60000).toISOString();$('preview').textContent=localDisplay(s)+' to '+localDisplay(e)}catch(e){$('preview').textContent=e.message}}['date','start','duration'].forEach(id=>$(id).addEventListener('change',preview));preview();if(!ready){$('book').disabled=true;$('message').textContent='Setup required: connect the shared booking database first.'}
-$('form').onsubmit=async ev=>{ev.preventDefault();$('book').disabled=true;$('message').textContent='Checking and reserving…';try{const start=isoFromChicago($('date').value,$('start').value);const result=await api('rpc/create_booking',{method:'POST',body:JSON.stringify({p_player:$('player').value.trim(),p_start:start,p_minutes:Number($('duration').value),p_purpose:$('purpose').value})});const item=typeof result==='string'?JSON.parse(result):result;$('message').textContent='Booked! Reservation ID: '+item.id+' | Cancellation code: '+item.cancel_code+' . Save both privately.';await refresh()}catch(e){$('message').textContent='Not booked: '+e.message}finally{$('book').disabled=!ready}};
-async function refresh(){const day=$('viewdate').value;const start=isoFromChicago(day,'00:00'),end=new Date(Date.parse(start)+27*3600000).toISOString();$('schedule').replaceChildren();try{const rows=await api('bookings?select=id,player_name,purpose,starts_at,ends_at&starts_at=lt.'+encodeURIComponent(end)+'&ends_at=gt.'+encodeURIComponent(start)+'&order=starts_at.asc');const filtered=rows.filter(r=>chicagoDate(new Date(r.starts_at))===day||chicagoDate(new Date(Date.parse(r.ends_at)-60000))===day||Date.parse(r.starts_at)<Date.parse(start));if(!filtered.length){const li=document.createElement('li');li.textContent='No reservations for this day.';$('schedule').append(li)}for(const r of filtered){const li=document.createElement('li');li.textContent=localDisplay(r.starts_at)+' – '+localDisplay(r.ends_at)+' | '+r.player_name+' | '+r.purpose;$('schedule').append(li)}}catch(e){const li=document.createElement('li');li.textContent=e.message;$('schedule').append(li)}}$('refresh').onclick=refresh;$('viewdate').onchange=refresh;
-$('cancelForm').onsubmit=async ev=>{ev.preventDefault();$('cancelMessage').textContent='Cancelling…';try{await api('rpc/cancel_booking',{method:'POST',body:JSON.stringify({p_id:$('cancelId').value.trim(),p_code:$('cancelCode').value.trim()})});$('cancelMessage').textContent='Reservation cancelled.';await refresh()}catch(e){$('cancelMessage').textContent=e.message}};if(ready)refresh();
-</script></html>
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tee Times | Taylorville SGL</title>
+<style>
+body{margin:0;background:#101114;color:#f4f0e7;font:16px system-ui}
+main{max-width:850px;margin:auto;padding:25px}
+h1,b,a{color:#e0bb69}
+.card{background:#1d1e21;border:1px solid #55492c;border-radius:14px;padding:20px;margin:18px 0}
+label{display:block;margin:12px 0 5px}
+input,select,button{box-sizing:border-box;padding:12px;background:#292a2e;color:white;border:1px solid #75633e;border-radius:8px;font:inherit}
+input,select{width:100%}
+button{cursor:pointer;background:#d4ad57;color:#171717;font-weight:700}
+button:disabled{opacity:.5}
+li{padding:12px;border-bottom:1px solid #444;overflow-wrap:anywhere}
+.muted{color:#b9b4a9;font-size:14px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+#message{min-height:24px}
+@media(max-width:550px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+<p><a href="index.html">← Taylorville SGL standings</a></p>
+<h1>Simulator Tee Times</h1>
+<p>One simulator · Open 24/7 · 1–6 hour reservations · Central Time</p>
+
+<section class="card">
+<h2>Book the simulator</h2>
+<p class="muted">Reservations start every 30 minutes and may cross midnight.</p>
+<form id="form">
+<label for="player">Player name</label>
+<input id="player" maxlength="80" required autocomplete="name">
+
+<div class="grid">
+<div>
+<label for="date">Date</label>
+<input id="date" type="date" required>
+</div>
+<div>
+<label for="start">Start time</label>
+<select id="start"></select>
+</div>
+</div>
+
+<div class="grid">
+<div>
+<label for="duration">Duration</label>
+<select id="duration"></select>
+</div>
+<div>
+<label for="purpose">Purpose</label>
+<select id="purpose">
+<option value="league">League match</option>
+<option value="practice">Practice</option>
+<option value="warmup">Warm-up and match</option>
+</select>
+</div>
+</div>
+
+<label for="code">Private league booking code</label>
+<input id="code" type="password" required autocomplete="off">
+
+<p id="preview" class="muted"></p>
+<button id="book" type="submit">Reserve tee time</button>
+</form>
+<p id="message" role="status"></p>
+</section>
+
+<section class="card">
+<h2>Shared schedule</h2>
+<label for="viewdate">View reservations for</label>
+<input id="viewdate" type="date">
+<p><button id="refresh" type="button">Refresh calendar</button></p>
+<ul id="schedule"><li>Loading reservations…</li></ul>
+</section>
+
+<p class="muted">To cancel a reservation, contact the league organizer. Online cancellation will be added later.</p>
+</main>
+
+<script>
+const SUPABASE_URL='https://xgjziyopzeeneccfaszb.supabase.co';
+const SUPABASE_KEY='sb_publishable_7ttHIcbCVOCv1rJlWpq0AA_59y0Tw7O';
+const TZ='America/Chicago';
+const $=id=>document.getElementById(id);
+
+function chicagoDate(d=new Date()){
+ const p=Object.fromEntries(
+  new Intl.DateTimeFormat('en-US',{
+   timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit'
+  }).formatToParts(d).filter(x=>x.type!=='literal').map(x=>[x.type,x.value])
+ );
+ return p.year+'-'+p.month+'-'+p.day;
+}
+
+function display(iso){
+ return new Intl.DateTimeFormat('en-US',{
+  timeZone:TZ,month:'short',day:'numeric',
+  hour:'numeric',minute:'2-digit'
+ }).format(new Date(iso));
+}
+
+function chicagoISO(date,time){
+ const [h,m]=time.split(':').map(Number);
+ const wall=Date.parse(date+'T'+time+':00Z');
+ let guess=wall+6*3600000;
+ const formatter=new Intl.DateTimeFormat('en-US',{
+  timeZone:TZ,year:'numeric',month:'2-digit',
+  day:'2-digit',hour:'2-digit',minute:'2-digit',
+  hourCycle:'h23'
+ });
+ function parts(d){
+  return Object.fromEntries(formatter.formatToParts(d)
+   .filter(x=>x.type!=='literal').map(x=>[x.type,Number(x.value)]));
+ }
+ for(let i=0;i<4;i++){
+  const p=parts(new Date(guess));
+  const seen=Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute);
+  guess+=wall-seen;
+  if(seen===wall)break;
+ }
+ const p=parts(new Date(guess));
+ if(p.year!==Number(date.slice(0,4))||
+    p.month!==Number(date.slice(5,7))||
+    p.day!==Number(date.slice(8,10))||
+    p.hour!==h||p.minute!==m){
+  throw Error('This time is unavailable due to daylight saving time.');
+ }
+ return new Date(guess).toISOString();
+}
+
+async function api(path,options={}){
+ const response=await fetch(SUPABASE_URL+'/rest/v1/'+path,{
+  ...options,
+  headers:{
+   apikey:SUPABASE_KEY,
+   'Content-Type':'application/json',
+   ...(options.headers||{})
+  }
+ });
+ const body=await response.text();
+ let data;
+ try{data=body?JSON.parse(body):null}
+ catch{data=body}
+ if(!response.ok)throw Error(data?.message||data?.error||'Request failed');
+ return data;
+}
+
+for(let i=0;i<48;i++){
+ const h=Math.floor(i/2),m=i%2*30;
+ const value=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+ const option=document.createElement('option');
+ option.value=value;
+ option.textContent=new Date(Date.UTC(2020,0,1,h,m))
+  .toLocaleTimeString('en-US',{
+   timeZone:'UTC',hour:'numeric',minute:'2-digit'
+  });
+ $('start').append(option);
+}
+
+for(let i=2;i<=12;i++){
+ const option=document.createElement('option');
+ option.value=i*30;
+ option.textContent=(i/2)+' hour'+(i===2?'':'s');
+ if(i===4)option.selected=true;
+ $('duration').append(option);
+}
+
+$('date').value=chicagoDate();
+$('viewdate').value=chicagoDate();
+$('start').value='18:00';
+
+function preview(){
+ try{
+  const start=chicagoISO($('date').value,$('start').value);
+  const end=new Date(Date.parse(start)+Number($('duration').value)*60000).toISOString();
+  $('preview').textContent=display(start)+' to '+display(end);
+ }catch(e){
+  $('preview').textContent=e.message;
+ }
+}
+
+['date','start','duration'].forEach(id=>
+ $(id).addEventListener('change',preview)
+);
+preview();
+
+$('form').onsubmit=async event=>{
+ event.preventDefault();
+ $('book').disabled=true;
+ $('message').textContent='Checking and reserving…';
+ try{
+  const start=chicagoISO($('date').value,$('start').value);
+  const result=await api('rpc/book_simulator',{
+   method:'POST',
+   body:JSON.stringify({
+    p_player_name:$('player').value.trim(),
+    p_booking_type:$('purpose').value,
+    p_start_time:start,
+    p_duration_minutes:Number($('duration').value),
+    p_booking_code:$('code').value
+   })
+  });
+  $('message').textContent='Reservation confirmed! Booking ID: '+result;
+  $('code').value='';
+  await refresh();
+ }catch(e){
+  $('message').textContent='Not booked: '+e.message;
+ }finally{
+  $('book').disabled=false;
+ }
+};
+
+async function refresh(){
+ const day=$('viewdate').value;
+ $('schedule').replaceChildren();
+ try{
+  const start=chicagoISO(day,'00:00');
+  const nextDay=new Date(Date.parse(day+'T00:00:00Z')+86400000)
+   .toISOString().slice(0,10);
+  const end=chicagoISO(nextDay,'00:00');
+  const path='simulator_bookings?select=id,player_name,booking_type,start_time,end_time'
+   +'&start_time=lt.'+encodeURIComponent(end)
+   +'&end_time=gt.'+encodeURIComponent(start)
+   +'&order=start_time.asc';
+  const rows=await api(path);
+  if(!rows.length){
+   const li=document.createElement('li');
+   li.textContent='No reservations for this day.';
+   $('schedule').append(li);
+  }
+  for(const row of rows){
+   const li=document.createElement('li');
+   li.textContent=display(row.start_time)+' – '+display(row.end_time)
+    +' | '+row.player_name+' | '+row.booking_type;
+   $('schedule').append(li);
+  }
+ }catch(e){
+  const li=document.createElement('li');
+  li.textContent='Unable to load schedule: '+e.message;
+  $('schedule').append(li);
+ }
+}
+
+$('refresh').onclick=refresh;
+$('viewdate').onchange=refresh;
+refresh();
+</script>
+</body>
+</html>
