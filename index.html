@@ -15,10 +15,10 @@ function load(){
     for(const p of db.players){
       teams[p.username.trim().toLowerCase()]=teamNames[p.team_id]||'';
     }
-    const weeks=db.weeks.filter(w=>w.finalized).sort((a,b)=>a.week_number-b.week_number).map(w=>({
+    const weeks=db.weeks.filter(w=>w.finalized||w.week_number===4).sort((a,b)=>a.week_number-b.week_number).map(w=>({
       name:'Week '+w.week_number,
       ids:[String(w.tournament_1_id||''),String(w.tournament_2_id||'')],
-      scores:db.scores.filter(s=>s.week_number===w.week_number).map(s=>({
+      scores:db.scores.filter(s=>w.finalized&&s.week_number===w.week_number).map(s=>({
         player:s.username,
         club:'',
         thru:18,
@@ -30,7 +30,7 @@ function load(){
       ...state,
       teams,
       weeks,
-      weekName:weeks.length?weeks[weeks.length-1].name:'Week 1',
+      weekName:'Week 4',
       scores:weeks.length?weeks[weeks.length-1].scores:[],
       ids:weeks.length?weeks[weeks.length-1].ids:state.ids
     });
