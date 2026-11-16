@@ -73,4 +73,4 @@ $('newWeek').onclick=()=>{let name=$('weekName').value.trim();if(name&&!activeWe
 $('download').onclick=()=>{let blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='league-data.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};load();
 window.addEventListener('sgl-standings-loaded', function(event) {
   console.log('Taylorville SGL standings loaded:', event.detail);
-});</script><script src="standings.js"></script><script>loadSGLStandings().catch(console.error);</script></body></html></script></body></html>
+});</script><script src="standings.js"></script><script>loadSGLStandings().catch(console.error);</script></body></html></script><<script src="weekly-results.js"></script></body></html>
