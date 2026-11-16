@@ -31,7 +31,7 @@ function load(){
       teams,
       weeks,
       weekName:'Week 4',
-      scores:weeks.length?weeks[weeks.length-1].scores:[],
+      scores:[],
       ids:weeks.length?weeks[weeks.length-1].ids:state.ids
     });
     sync();
@@ -39,7 +39,7 @@ function load(){
 }
 
 function activeWeek(){return state.weeks.find(w=>w.name===state.weekName)}
-function weekScores(){return activeWeek()?.scores||state.scores||[]}
+function weekScores(){const w=activeWeek();return w?w.scores:[]}
 function sync(){['id1','id2'].forEach((id,i)=>{let val=String(state.ids[i]||'');$(id).value=val;$(id+'Label').textContent=val;for(let type of ['frame','link']){let el=$(type+(i+1)),url=`https://simulatorgolftour.com/embed/tournament/${encodeURIComponent(val)}/standings/${view}?theme=dark`;if(type==='frame'){if(el.src!==url)el.src=url}else el.href=url}});$('weekName').value=state.weekName;$('teamCSV').value='player,team\n'+Object.entries(state.teams).map(([p,t])=>`${p},${t}`).join('\n');render()}
 function rankRows(items,key){return [...items].sort((a,b)=>a[key]-b[key]||String(a.player||a.team).localeCompare(String(b.player||b.team)))}
 function render(){let list=[...weekScores()].sort((a,b)=>{let cx=Number(a.thru)===18,cy=Number(b.thru)===18;if(cx!==cy)return cx?-1:1;return Number(a[view])-Number(b[view])||String(a.player).localeCompare(String(b.player))});$('scoreHead').textContent=view.toUpperCase();let previous=null,rank=0;$('board').innerHTML=list.length?list.map((p,i)=>{let completed=Number(p.thru)===18,score=Number(p[view]);if(completed&&(previous===null||score!==previous))rank=i+1;if(completed)previous=score;return `<tr><td style="color:#d8b66c;font-weight:800">${completed?rank:'—'}</td><td>${esc(p.player)}</td><td>${esc(p.club)}</td><td>${esc(p.thru)}</td><td style="font-weight:800">${esc(p[view])}</td></tr>`}).join(''):'<tr><td colspan="5" class="empty">No combined scores entered for this week.</td></tr>';renderSeason()}
