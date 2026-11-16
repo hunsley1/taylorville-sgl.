@@ -208,7 +208,11 @@ $('form').onsubmit=async event=>{
   $('code').value='';
   await refresh();
  }catch(e){
-  $('message').textContent='Not booked: '+e.message;
+  
+  $('message').textContent =
+ e.message.includes('no_overlapping_bookings')
+ ? 'This time is already reserved. Please choose another time.'
+ : 'Not booked: '+e.message;
  }finally{
   $('book').disabled=false;
  }
