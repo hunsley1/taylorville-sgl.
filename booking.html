@@ -39,7 +39,6 @@ details summary{cursor:pointer;color:#e0bb69;font-weight:700}
 <form id="form">
 <label for="player">Player name</label>
 <input id="player" maxlength="80" required autocomplete="name">
-
 <div class="grid">
 <div>
 <label for="date">Date</label>
@@ -50,7 +49,6 @@ details summary{cursor:pointer;color:#e0bb69;font-weight:700}
 <select id="start"></select>
 </div>
 </div>
-
 <div class="grid">
 <div>
 <label for="duration">Duration</label>
@@ -65,7 +63,6 @@ details summary{cursor:pointer;color:#e0bb69;font-weight:700}
 </select>
 </div>
 </div>
-
 <label for="code">Private league booking code</label>
 <input id="code" type="password" required autocomplete="off">
 <p id="preview" class="muted"></p>
@@ -79,28 +76,22 @@ details summary{cursor:pointer;color:#e0bb69;font-weight:700}
 <label for="viewdate">View reservations for</label>
 <input id="viewdate" type="date">
 <p><button id="refresh" type="button">Refresh calendar</button></p>
-<ul id="schedule">
-<li>Loading reservations…</li>
-</ul>
+<ul id="schedule"><li>Loading reservations…</li></ul>
 </section>
 
 <section class="card">
 <details id="admin">
-<summary>Organizer only · Manage cancellations</summary>
-<p class="muted">
-Only the organizer's separate admin password can cancel a reservation.
-This is not the league booking code.
-</p>
-<label for="adminPassword">Admin password</label>
-<input id="adminPassword" type="password" autocomplete="off"
-placeholder="Enter your private admin password">
-<p class="muted">
-Select a date in Shared schedule above, then tap Cancel next to
-the correct reservation below.
-</p>
-<ul id="adminSchedule">
-<li>Open this section to view reservations.</li>
-</ul>
+<summary>Cancel a reservation</summary>
+<p class="muted">Golfers can cancel using the shared league booking code. The organizer can also use the separate admin password. Anyone with the league code can cancel any reservation.</p>
+<label for="cancelMethod">Cancellation method</label>
+<select id="cancelMethod">
+<option value="league">League booking code</option>
+<option value="admin">Organizer admin password</option>
+</select>
+<label for="adminPassword" id="cancelCredentialLabel">League booking code</label>
+<input id="adminPassword" type="password" autocomplete="off" placeholder="Enter the league booking code">
+<p class="muted">Select a date in Shared schedule above, then tap Cancel next to the correct reservation below.</p>
+<ul id="adminSchedule"><li>Open this section to view reservations.</li></ul>
 <p id="adminMessage" role="status"></p>
 </details>
 </section>
@@ -322,9 +313,11 @@ function renderAdmin(){
 
 async function cancelBooking(booking,button){
  const password=$('adminPassword').value;
+ const method=$('cancelMethod').value;
 
  if(!password){
-  $('adminMessage').textContent='Enter your admin password first.';
+  $('adminMessage').textContent=
+   'Enter the '+(method==='admin'?'admin password':'league booking code')+' first.';
   return;
  }
 
@@ -338,12 +331,23 @@ async function cancelBooking(booking,button){
  $('adminMessage').textContent='Canceling reservation…';
 
  try{
-  const result=await api('rpc/cancel_simulator_booking',{
+  const path=method==='admin'
+   ?'rpc/cancel_simulator_booking'
+   :'rpc/cancel_simulator_booking_with_code';
+
+  const params=method==='admin'
+   ?{
+     p_booking_id:booking.id,
+     p_admin_password:password
+    }
+   :{
+     p_booking_id:booking.id,
+     p_cancel_code:password
+    };
+
+  const result=await api(path,{
    method:'POST',
-   body:JSON.stringify({
-    p_booking_id:booking.id,
-    p_admin_password:password
-   })
+   body:JSON.stringify(params)
   });
 
   if(result!==true)
@@ -360,6 +364,16 @@ async function cancelBooking(booking,button){
   button.disabled=false;
  }
 }
+
+$('cancelMethod').onchange=()=>{
+ const admin=$('cancelMethod').value==='admin';
+ $('cancelCredentialLabel').textContent=
+  admin?'Admin password':'League booking code';
+ $('adminPassword').placeholder=
+  admin?'Enter your private admin password':'Enter the league booking code';
+ $('adminPassword').value='';
+ $('adminMessage').textContent='';
+};
 
 $('refresh').onclick=refresh;
 $('viewdate').onchange=refresh;
