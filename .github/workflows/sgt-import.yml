@@ -14,40 +14,82 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check SGT leaderboard
-        env:
-          TOURNAMENT_ID: "83767"
+      - name: Test gross and net leaderboards
         run: |
           python3 - <<'PY'
-          import os
+          import re
           import urllib.request
+          from html import unescape
 
-          tournament = os.environ["TOURNAMENT_ID"]
-          url = (
-              "https://simulatorgolftour.com/"
-              f"embed/tournament/{tournament}/standings/gross"
-              "?theme=dark"
-          )
+          tournament = "83767"
 
-          print("Checking SGT tournament:", tournament)
-
-          try:
-              request = urllib.request.Request(
-                  url,
-                  headers={"User-Agent": "Mozilla/5.0"}
+          for score_type in ["gross", "net"]:
+              url = (
+                  "https://simulatorgolftour.com/"
+                  f"embed/tournament/{tournament}/"
+                  f"standings/{score_type}?theme=dark"
               )
-              with urllib.request.urlopen(
-                  request, timeout=30
-              ) as response:
-                  html = response.read().decode(
-                      "utf-8", errors="replace"
+
+              print(f"\n=== {score_type.upper()} ===")
+              print("URL:", url)
+
+              try:
+                  request = urllib.request.Request(
+                      url,
+                      headers={"User-Agent": "Mozilla/5.0"}
                   )
-                  print("HTTP status:", response.status)
-                  print("Response length:", len(html))
-                  print("Contains Mason:", "mason" in html.lower())
-                  print("First 1000 characters:")
-                  print(html[:1000])
-          except Exception as error:
-              print("SGT request failed:", error)
-              raise
+
+                  with urllib.request.urlopen(
+                      request, timeout=30
+                  ) as response:
+                      html = response.read().decode(
+                          "utf-8", errors="replace"
+                      )
+
+                      print("HTTP status:", response.status)
+                      print("Response length:", len(html))
+                      print(
+                          "Contains Mason:",
+                          "mason" in html.lower()
+                      )
+
+                      text = re.sub(
+                          r"<script\b[^>]*>.*?</script>",
+                          " ", html, flags=re.I | re.S
+                      )
+                      text = re.sub(
+                          r"<style\b[^>]*>.*?</style>",
+                          " ", text, flags=re.I | re.S
+                      )
+                      text = re.sub(r"<[^>]+>", " ", text)
+                      text = unescape(text)
+                      text = re.sub(r"\s+", " ", text)
+
+                      matches = list(
+                          re.finditer(
+                              "mason", text, flags=re.I
+                          )
+                      )
+
+                      for match in matches[:5]:
+                          start = max(0, match.start() - 100)
+                          end = min(
+                              len(text), match.end() + 150
+                          )
+                          print(
+                              "Mason context:",
+                              text[start:end]
+                          )
+
+                      if not matches:
+                          print(
+                              "No Mason score found "
+                              "in returned HTML"
+                          )
+
+              except Exception as error:
+                  print(
+                      f"{score_type} request failed:",
+                      error
+                  )
           PY
