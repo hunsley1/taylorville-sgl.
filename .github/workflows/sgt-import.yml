@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Import completed SGT scores
         env:
-          SUPABASE_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_URL: https://xgjziyopzeeneccfaszb.supabase.co
 
         run: |
