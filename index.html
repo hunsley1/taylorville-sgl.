@@ -121,13 +121,12 @@ td,th{padding:12px 5px}
 <tr>
 <th>POS</th>
 <th>PLAYER</th>
-<th>THRU</th>
 <th>HCP</th>
 <th id="scoreHead">GROSS</th>
 </tr>
 </thead>
 <tbody id="board">
-<tr><td colspan="5" class="empty">Loading…</td></tr>
+<tr><td colspan="4" class="empty">Loading…</td></tr>
 </tbody>
 </table>
 </div>
@@ -372,11 +371,10 @@ function renderCurrent(){
       <tr>
         <td class="tag">${rank}</td>
         <td>${esc(s.username)}</td>
-        <td>18</td>
         <td class="handicap">${formatHandicap(s.handicap)}</td>
         <td><strong>${s[field]}</strong></td>
       </tr>`)
-    :'<tr><td colspan="5" class="empty">No combined scores entered for this week.</td></tr>';
+    :'<tr><td colspan="4" class="empty">No combined scores entered for this week.</td></tr>';
 
   const teams=teamResults(currentWeek);
 
