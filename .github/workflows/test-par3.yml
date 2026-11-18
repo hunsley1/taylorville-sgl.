@@ -10,14 +10,18 @@ permissions:
 jobs:
   test-par3:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     steps:
-      - name: Inspect SGT bullseye data
+      - name: Inspect SGT bullseye data sources
         run: |
           python3 - <<'PY'
+          import concurrent.futures
           import re
+          import urllib.error
           import urllib.request
           from html.parser import HTMLParser
+          from urllib.parse import urljoin
 
           SGT = "https://simulatorgolftour.com"
           TOURNAMENT = "83767"
@@ -26,12 +30,11 @@ jobs:
               def __init__(self):
                   super().__init__()
                   self.links = []
-                  self.scripts = []
                   self.text = []
 
               def handle_starttag(self, tag, attrs):
                   attrs = dict(attrs)
-                  if tag in ("a", "script", "iframe"):
+                  if tag in ("a", "script", "iframe", "link"):
                       url = attrs.get("href") or attrs.get("src")
                       if url:
                           self.links.append(url)
@@ -41,69 +44,188 @@ jobs:
                   if value:
                       self.text.append(value)
 
-          def fetch(path):
-              url = SGT + path
+          def fetch(item):
+              label, path = item
+              url = urljoin(SGT + "/", path)
+
               request = urllib.request.Request(
                   url,
                   headers={
-                      "User-Agent": "Mozilla/5.0",
-                      "Accept": "text/html,*/*",
-                      "Referer": SGT + "/"
-                  }
+                      "User-Agent": (
+                          "Mozilla/5.0 (X11; Linux x86_64) "
+                          "AppleWebKit/537.36 "
+                          "Chrome/131.0.0.0 Safari/537.36"
+                      ),
+                      "Accept": "text/html,application/json,*/*",
+                      "Referer": SGT + "/",
+                  },
               )
 
               try:
                   with urllib.request.urlopen(
-                      request, timeout=30
+                      request, timeout=12
                   ) as response:
-                      content = response.read().decode(
-                          "utf-8", "replace"
-                      )
-                      print(
-                          f"URL: {url}\n"
-                          f"HTTP: {response.status}\n"
-                          f"HTML size: {len(content)}",
-                          flush=True
-                      )
-                      return content
+                      raw = response.read(1500000)
+                      html = raw.decode("utf-8", "replace")
+                      return {
+                          "label": label,
+                          "url": url,
+                          "status": response.status,
+                          "type": response.headers.get(
+                              "Content-Type", ""
+                          ),
+                          "html": html,
+                          "error": None,
+                      }
               except Exception as error:
-                  print(
-                      f"Could not retrieve {url}: {error}",
-                      flush=True
-                  )
-                  return ""
+                  return {
+                      "label": label,
+                      "url": url,
+                      "status": None,
+                      "type": "",
+                      "html": "",
+                      "error": str(error),
+                  }
 
-          html = fetch(f"/tournament/{TOURNAMENT}")
-
-          if not html:
-              print("Tournament page unavailable.")
-              raise SystemExit(0)
-
-          parser = Inspector()
-          parser.feed(html)
-
-          print("\nPOSSIBLE BULLSEYE DATA:")
-          keywords = (
-              "bullseye", "closest", "proximity",
-              "par3", "par_3", "cttp"
-          )
-
-          matches = [
-              line for line in html.splitlines()
-              if any(k in line.lower() for k in keywords)
+          sources = [
+              (
+                  "Main tournament page",
+                  f"/tournament/{TOURNAMENT}",
+              ),
+              (
+                  "Embedded gross leaderboard",
+                  f"/embed/tournament/{TOURNAMENT}"
+                  "/standings/gross?theme=dark",
+              ),
+              (
+                  "Embedded net leaderboard",
+                  f"/embed/tournament/{TOURNAMENT}"
+                  "/standings/net?theme=dark",
+              ),
+              (
+                  "SGT homepage",
+                  "/",
+              ),
           ]
 
-          for line in matches[:20]:
-              print(line.strip()[:400])
+          print("TESTING SGT CONNECTIONS", flush=True)
+          print("=" * 60, flush=True)
 
-          print("\nRELEVANT PAGE TEXT:")
-          for item in parser.text:
-              if any(k in item.lower() for k in keywords):
-                  print(item[:250])
+          with concurrent.futures.ThreadPoolExecutor(
+              max_workers=4
+          ) as executor:
+              results = list(executor.map(fetch, sources))
 
-          print("\nLINKS AND SCRIPTS:")
-          for link in parser.links[:60]:
-              print(link[:250])
+          keywords = (
+              "bullseye",
+              "closest",
+              "proximity",
+              "par3",
+              "par_3",
+              "cttp",
+              "nearest",
+          )
+
+          working = []
+
+          for result in results:
+              print("\n" + "=" * 60)
+              print("SOURCE:", result["label"])
+              print("URL:", result["url"])
+
+              if result["error"]:
+                  print("RESULT: FAILED")
+                  print("ERROR:", result["error"])
+                  continue
+
+              print("RESULT: CONNECTED")
+              print("HTTP:", result["status"])
+              print("CONTENT TYPE:", result["type"])
+              print("SIZE:", len(result["html"]))
+
+              working.append(result)
+
+              html = result["html"]
+              parser = Inspector()
+              parser.feed(html)
+
+              print("\nBULLSEYE KEYWORD MATCHES:")
+              count = 0
+              for keyword in keywords:
+                  matches = list(
+                      re.finditer(
+                          re.escape(keyword),
+                          html,
+                          re.IGNORECASE,
+                      )
+                  )
+                  if matches:
+                      print(
+                          f"{keyword}: {len(matches)} occurrences"
+                      )
+                      for match in matches[:3]:
+                          start = max(0, match.start() - 100)
+                          end = min(
+                              len(html), match.end() + 180
+                          )
+                          snippet = " ".join(
+                              html[start:end].split()
+                          )
+                          print(" ", snippet[:350])
+                      count += len(matches)
+
+              if not count:
+                  print("No matching keywords in HTML.")
+
+              print("\nRELEVANT LINKS:")
+              relevant = [
+                  link for link in parser.links
+                  if any(
+                      keyword in link.lower()
+                      for keyword in (
+                          "api", "tournament", "bullseye",
+                          "closest", "stat", ".js",
+                      )
+                  )
+              ]
+              for link in relevant[:25]:
+                  print(link[:250])
+
+              print("\nPAGE TEXT MATCHES:")
+              found = 0
+              for item in parser.text:
+                  if any(k in item.lower() for k in keywords):
+                      print(item[:250])
+                      found += 1
+                      if found >= 10:
+                          break
+
+          print("\n" + "=" * 60)
+          print("TEST SUMMARY")
+          print(
+              f"Connected to {len(working)} "
+              f"of {len(sources)} sources."
+          )
+
+          for result in results:
+              status = (
+                  "CONNECTED"
+                  if result["error"] is None
+                  else "FAILED"
+              )
+              print(f"{status}: {result['label']}")
+
+          if not working:
+              print(
+                  "\nNo SGT pages were reachable. "
+                  "The network connection must be "
+                  "resolved before inspecting bullseye data."
+              )
+          else:
+              print(
+                  "\nReview keyword matches and links "
+                  "to identify possible bullseye sources."
+              )
 
           print("\nTEST COMPLETE")
           PY
