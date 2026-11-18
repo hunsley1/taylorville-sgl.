@@ -1,0 +1,142 @@
+
+name: Test SGT Tournament Discovery
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-discovery:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install HTML parser
+        run: |
+          python3 -m pip install --quiet beautifulsoup4
+
+      - name: Inspect both SGT tours
+        run: |
+          python3 - <<'PY'
+          import re
+          import urllib.request
+          from urllib.parse import urljoin
+          from bs4 import BeautifulSoup
+
+          BASE = "https://simulatorgolftour.com"
+
+          TOURS = {
+              "Hunsley1": "3927",
+              "Hunsley2": "3085"
+          }
+
+          def fetch(url):
+              request = urllib.request.Request(
+                  url,
+                  headers={
+                      "User-Agent": "Mozilla/5.0",
+                      "Accept": "text/html,*/*",
+                      "Referer": BASE + "/"
+                  }
+              )
+
+              with urllib.request.urlopen(
+                  request, timeout=30
+              ) as response:
+                  return response.read().decode(
+                      "utf-8", "replace"
+                  )
+
+          for club, tour_id in TOURS.items():
+              print("\n" + "=" * 60)
+              print(f"CLUB: {club}")
+              print(f"TOUR ID: {tour_id}")
+
+              url = f"{BASE}/tour/{tour_id}"
+
+              try:
+                  html = fetch(url)
+              except Exception as error:
+                  print(f"ERROR: {error}")
+                  continue
+
+              soup = BeautifulSoup(
+                  html, "html.parser"
+              )
+
+              print(f"HTTP page retrieved")
+              print(f"HTML size: {len(html)}")
+
+              print("\nPAGE TITLE:")
+              if soup.title:
+                  print(
+                      soup.title.get_text(
+                          " ", strip=True
+                      )
+                  )
+
+              print("\nTOURNAMENT LINKS:")
+
+              found = 0
+
+              for link in soup.find_all(
+                  "a", href=True
+              ):
+                  href = link["href"]
+
+                  if re.search(
+                      r"/tournament/\d+",
+                      href
+                  ):
+                      print(
+                          link.get_text(
+                              " ", strip=True
+                          ),
+                          urljoin(url, href)
+                      )
+                      found += 1
+
+              print(
+                  f"Found {found} tournament links"
+              )
+
+              print("\nPOSSIBLE API REFERENCES:")
+
+              references = set()
+
+              for match in re.findall(
+                  r'["\']([^"\']*(?:'
+                  r'sgt-api|tournament|tour/'
+                  r')[^"\']*)["\']',
+                  html,
+                  flags=re.I
+              ):
+                  if len(match) < 200:
+                      references.add(match)
+
+              for reference in sorted(
+                  references
+              )[:30]:
+                  print(reference)
+
+              print("\nPAGE SCRIPTS:")
+
+              for script in soup.find_all(
+                  "script", src=True
+              ):
+                  print(
+                      urljoin(
+                          url, script["src"]
+                      )
+                  )
+
+              print("\nPAGE TEXT PREVIEW:")
+              print(
+                  soup.get_text(
+                      " ", strip=True
+                  )[:1200]
+              )
+
+          print("\nDISCOVERY TEST COMPLETE")
+          PY
