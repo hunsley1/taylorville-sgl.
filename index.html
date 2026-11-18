@@ -1,43 +1,691 @@
+
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0d0e10"><title>Taylorville SGL | Simulator Golf League</title>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0d0e10">
+<title>Taylorville SGL | Simulator Golf League</title>
 <style>
-:root{font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:#f3f0e8;background:#0d0e10}*{box-sizing:border-box}body{margin:0}a{color:#e7c47b}header{border-bottom:1px solid #36332b;background:#121316}.wrap{max-width:1120px;margin:auto;padding:0 22px}.top{display:flex;align-items:center;justify-content:space-between;padding:22px 0;gap:12px}.brand{font-size:clamp(22px,4vw,34px);font-weight:900;letter-spacing:.08em}.brand span{color:#d8b66c}.eyebrow{color:#c5a565;letter-spacing:.19em;font-size:11px;font-weight:800}.hero{padding:65px 0 35px;background:radial-gradient(ellipse at 80% 0%,#44351a55,transparent 55%)}h1{font-size:clamp(34px,6vw,65px);line-height:1.05;margin:12px 0}h2{font-size:23px;margin:0 0 18px}h3{margin-top:26px}.muted{color:#b2b0a9}.pill{border:1px solid #6b5831;color:#e9c980;border-radius:100px;padding:9px 13px;font-size:12px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:22px 0 32px}.stat,.panel{background:#18191c;border:1px solid #33312b;border-radius:15px;padding:23px}.stat strong{font-size:29px;color:#e7c47b;display:block}.stat small{color:#aaa9a2}.panel{margin-bottom:22px}.row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.tabs{display:flex;background:#101114;border:1px solid #37342d;border-radius:10px;padding:4px}.tabs button{border:0;border-radius:7px;background:transparent;color:#bdb9af;padding:11px 20px;cursor:pointer}.tabs button.active{background:#d7b46c;color:#15130e;font-weight:800}table{width:100%;border-collapse:collapse;margin-top:18px}th{text-align:left;color:#aaa59b;font-size:11px;letter-spacing:.11em}td,th{padding:15px 12px;border-bottom:1px solid #32302b}td:last-child,th:last-child{text-align:right}.empty{text-align:center;color:#aaa9a2;padding:40px 10px}.btn{border:0;background:#d8b66c;color:#19150d;padding:12px 18px;border-radius:9px;font-weight:800;cursor:pointer;text-decoration:none;display:inline-block}.btn.secondary{background:#2a2927;color:#e9d9b7;border:1px solid #59503b}.embedgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}iframe{width:100%;height:560px;border:1px solid #39352b;border-radius:9px;background:#101114}footer{padding:40px 0;color:#918f87;font-size:13px}.season-note{color:#b2b0a9;font-size:12px;line-height:1.6}.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.toolbar select{background:#101114;color:white;border:1px solid #555044;border-radius:8px;padding:12px;max-width:100%;font:inherit}.tag{font-size:12px;color:#d8b66c}.small{font-size:12px}.error{color:#ffbd9b} @media(max-width:700px){.stats{gap:8px}.stat{padding:13px}.stat strong{font-size:23px}.embedgrid{grid-template-columns:1fr}.top{align-items:flex-start}.pill{font-size:10px}.hero{padding-top:42px}td,th{padding:12px 5px}.toolbar select{width:100%}}
-</style></head><body>
-<header><div class="wrap top"><div><div class="brand">TAYLORVILLE <span>SGL</span></div><div class="eyebrow">SIMULATOR GOLF LEAGUE</div></div><span class="pill">THE LEAGUE • ALL 20 PLAYERS</span></div></header>
-<main><div class="wrap" style="padding-top:22px"><!-- Booking first for easy access -->
-<section class="panel" id="bookingTop" style="border-color:#8d713e;background:linear-gradient(120deg,#262116,#18191c)"><div class="row"><div><div class="eyebrow">24/7 SIMULATOR ACCESS</div><h2>Reserve your tee time</h2></div><a class="btn" href="booking.html">Open booking calendar →</a></div><p class="muted">Book 1–6 hours for matches, warm-ups, or practice. One simulator, no overlapping reservations.</p></section>
-</div><section class="hero"><div class="wrap"><div class="eyebrow">WEEKLY COMPETITION • ONE LEADERBOARD</div><h1>Every round.<br><span style="color:#d8b66c">One leaderboard.</span></h1><p class="muted">Two Simulator Golf Tour tournaments. One Taylorville SGL.</p><div class="stats"><div class="stat"><strong>20</strong><small>League golfers</small></div><div class="stat"><strong>2</strong><small>SGT tournaments</small></div><div class="stat"><strong>8</strong><small>Season weeks</small></div></div></div></section>
+:root{font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:#f3f0e8;background:#0d0e10}
+*{box-sizing:border-box}
+body{margin:0}
+a{color:#e7c47b}
+header{border-bottom:1px solid #36332b;background:#121316}
+.wrap{max-width:1120px;margin:auto;padding:0 22px}
+.top{display:flex;align-items:center;justify-content:space-between;padding:22px 0;gap:12px}
+.brand{font-size:clamp(22px,4vw,34px);font-weight:900;letter-spacing:.08em}
+.brand span{color:#d8b66c}
+.eyebrow{color:#c5a565;letter-spacing:.19em;font-size:11px;font-weight:800}
+.hero{padding:65px 0 35px;background:radial-gradient(ellipse at 80% 0%,#44351a55,transparent 55%)}
+h1{font-size:clamp(34px,6vw,65px);line-height:1.05;margin:12px 0}
+h2{font-size:23px;margin:0 0 18px}
+h3{margin-top:26px}
+.muted{color:#b2b0a9}
+.pill{border:1px solid #6b5831;color:#e9c980;border-radius:100px;padding:9px 13px;font-size:12px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:22px 0 32px}
+.stat,.panel{background:#18191c;border:1px solid #33312b;border-radius:15px;padding:23px}
+.stat strong{font-size:29px;color:#e7c47b;display:block}
+.stat small{color:#aaa9a2}
+.panel{margin-bottom:22px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.tabs{display:flex;background:#101114;border:1px solid #37342d;border-radius:10px;padding:4px}
+.tabs button{border:0;border-radius:7px;background:transparent;color:#bdb9af;padding:11px 20px;cursor:pointer}
+.tabs button.active{background:#d7b46c;color:#15130e;font-weight:800}
+table{width:100%;border-collapse:collapse;margin-top:18px}
+th{text-align:left;color:#aaa59b;font-size:11px;letter-spacing:.11em}
+td,th{padding:15px 12px;border-bottom:1px solid #32302b}
+td:last-child,th:last-child{text-align:right}
+.empty{text-align:center;color:#aaa9a2;padding:40px 10px}
+.btn{border:0;background:#d8b66c;color:#19150d;padding:12px 18px;border-radius:9px;font-weight:800;cursor:pointer;text-decoration:none;display:inline-block}
+.btn.secondary{background:#2a2927;color:#e9d9b7;border:1px solid #59503b}
+.embedgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+iframe{width:100%;height:560px;border:1px solid #39352b;border-radius:9px;background:#101114}
+footer{padding:40px 0;color:#918f87;font-size:13px}
+.season-note{color:#b2b0a9;font-size:12px;line-height:1.6}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.toolbar select{background:#101114;color:white;border:1px solid #555044;border-radius:8px;padding:12px;max-width:100%;font:inherit}
+.tag{font-size:12px;color:#d8b66c}
+.small{font-size:12px}
+.error{color:#ffbd9b}
+@media(max-width:700px){
+.stats{gap:8px}
+.stat{padding:13px}
+.stat strong{font-size:23px}
+.embedgrid{grid-template-columns:1fr}
+.top{align-items:flex-start}
+.pill{font-size:10px}
+.hero{padding-top:42px}
+td,th{padding:12px 5px}
+.toolbar select{width:100%}
+}
+</style>
+</head>
+<body>
+
+<header>
+<div class="wrap top">
+<div>
+<div class="brand">TAYLORVILLE <span>SGL</span></div>
+<div class="eyebrow">SIMULATOR GOLF LEAGUE</div>
+</div>
+<span class="pill">THE LEAGUE • ALL 20 PLAYERS</span>
+</div>
+</header>
+
+<main>
+<div class="wrap" style="padding-top:22px">
+<section class="panel" id="bookingTop" style="border-color:#8d713e;background:linear-gradient(120deg,#262116,#18191c)">
+<div class="row">
+<div>
+<div class="eyebrow">24/7 SIMULATOR ACCESS</div>
+<h2>Reserve your tee time</h2>
+</div>
+<a class="btn" href="booking.html">Open booking calendar →</a>
+</div>
+<p class="muted">Book 1–6 hours for matches, warm-ups, or practice. One simulator, no overlapping reservations.</p>
+</section>
+</div>
+
+<section class="hero">
+<div class="wrap">
+<div class="eyebrow">WEEKLY COMPETITION • ONE LEADERBOARD</div>
+<h1>Every round.<br><span style="color:#d8b66c">One leaderboard.</span></h1>
+<p class="muted">Two Simulator Golf Tour tournaments. One Taylorville SGL.</p>
+<div class="stats">
+<div class="stat"><strong>20</strong><small>League golfers</small></div>
+<div class="stat"><strong>2</strong><small>SGT tournaments</small></div>
+<div class="stat"><strong>8</strong><small>Season weeks</small></div>
+</div>
+</div>
+</section>
+
 <div class="wrap">
 <p id="loadStatus" class="muted small" role="status">Loading league standings from Supabase…</p>
-<section class="panel"><div class="row"><div><div class="eyebrow" id="currentWeekLabel">CURRENT WEEK • WEEK 4</div><h2 style="margin-top:9px">Combined standings</h2></div><div class="tabs"><button id="grossBtn" class="active">Gross</button><button id="netBtn">Net</button></div></div><div style="overflow-x:auto"><table><thead><tr><th>POS</th><th>PLAYER</th><th>CLUB</th><th>THRU</th><th id="scoreHead">GROSS</th></tr></thead><tbody id="board"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody></table></div><p class="season-note">Current week scores appear when recorded in Supabase. Official SGT tournament boards are below.</p></section>
-<section class="panel"><div class="row"><div><div class="eyebrow">TEAM COMPETITION</div><h2 style="margin-top:9px">Weekly team standings · Net</h2></div><span class="pill">4 GOLFERS PER TEAM</span></div><div style="overflow-x:auto"><table><thead><tr><th>POS</th><th>TEAM</th><th>FINISHED</th><th>WEEKLY NET</th><th>STATUS</th></tr></thead><tbody id="weeklyTeams"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody></table></div></section>
-<section class="panel"><div class="row"><div><div class="eyebrow">SEASON RACE</div><h2 style="margin-top:9px">Season-long standings</h2></div><div class="tabs"><button id="seasonGross" class="active">Gross</button><button id="seasonNet">Net</button></div></div><p class="season-note">Individual positions are ranked by cumulative total strokes from finalized weeks, not average. Team standings use the combined net strokes of all four golfers.</p><h3>Individual season totals</h3><div style="overflow-x:auto"><table><thead><tr><th>POS</th><th>PLAYER</th><th>TEAM</th><th>ROUNDS</th><th>TOTAL</th><th>AVG</th></tr></thead><tbody id="seasonPlayers"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody></table></div><h3>Team season totals · Net only</h3><div style="overflow-x:auto"><table><thead><tr><th>POS</th><th>TEAM</th><th>WEEKS</th><th>SEASON NET</th><th>STATUS</th></tr></thead><tbody id="seasonTeams"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody></table></div></section>
-<section class="panel" id="weeklyArchive"><div class="row"><div><div class="eyebrow">LEAGUE HISTORY</div><h2 style="margin-top:9px">Weekly Results Archive</h2></div><span class="pill" id="completedCount">0 COMPLETED WEEKS</span></div><p class="season-note">Choose a completed week to see individual gross/net rankings and all five team net totals.</p><div class="toolbar"><select id="archiveWeek" aria-label="Completed week"></select><div class="tabs"><button id="archiveIndividual" class="active">Individuals</button><button id="archiveTeams">Teams</button></div><div class="tabs" id="archiveScoreTabs"><button id="archiveGross" class="active">Gross</button><button id="archiveNet">Net</button></div></div><div style="overflow-x:auto"><table><thead id="archiveHead"></thead><tbody id="archiveBody"><tr><td class="empty">Loading…</td></tr></tbody></table></div></section>
-<section class="panel"><div class="row"><h2>Season tournament archive</h2><span class="pill" id="weekCount">8 WEEKS</span></div><div id="archive" class="muted">Loading tournament schedule…</div></section>
-<section class="panel"><div class="row"><h2>SGT live tournament boards</h2><span class="pill">SOURCE LEADERBOARDS</span></div><p class="muted">Official live SGT boards for the current week. Scores are not automatically imported from SGT into Supabase.</p><div class="embedgrid"><div><h3>Club 1 · <span id="id1Label">83765</span></h3><iframe id="frame1" title="SGT Club 1 gross standings" loading="lazy"></iframe><p><a id="link1" target="_blank" rel="noopener">Open on SGT ↗</a></p></div><div><h3>Club 2 · <span id="id2Label">83767</span></h3><iframe id="frame2" title="SGT Club 2 gross standings" loading="lazy"></iframe><p><a id="link2" target="_blank" rel="noopener">Open on SGT ↗</a></p></div></div></section>
-</div></main><footer><div class="wrap">© Taylorville SGL · Independent league website · Not affiliated with Simulator Golf Tour</div></footer>
+
+<section class="panel">
+<div class="row">
+<div>
+<div class="eyebrow" id="currentWeekLabel">CURRENT WEEK • WEEK 4</div>
+<h2 style="margin-top:9px">Combined standings</h2>
+</div>
+<div class="tabs">
+<button id="grossBtn" class="active">Gross</button>
+<button id="netBtn">Net</button>
+</div>
+</div>
+<div style="overflow-x:auto">
+<table>
+<thead><tr><th>POS</th><th>PLAYER</th><th>CLUB</th><th>THRU</th><th id="scoreHead">GROSS</th></tr></thead>
+<tbody id="board"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+</table>
+</div>
+<p class="season-note">Current week scores appear when recorded in Supabase. Official SGT tournament boards are below.</p>
+</section>
+
+<section class="panel">
+<div class="row">
+<div>
+<div class="eyebrow">TEAM COMPETITION</div>
+<h2 style="margin-top:9px">Weekly team standings · Net</h2>
+</div>
+<span class="pill">4 GOLFERS PER TEAM</span>
+</div>
+<div style="overflow-x:auto">
+<table>
+<thead><tr><th>POS</th><th>TEAM</th><th>FINISHED</th><th>WEEKLY NET</th><th>STATUS</th></tr></thead>
+<tbody id="weeklyTeams"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+</table>
+</div>
+</section>
+
+<section class="panel">
+<div class="row">
+<div>
+<div class="eyebrow">SEASON RACE</div>
+<h2 style="margin-top:9px">Season-long standings</h2>
+</div>
+<div class="tabs">
+<button id="seasonGross" class="active">Gross</button>
+<button id="seasonNet">Net</button>
+</div>
+</div>
+<p class="season-note">Individual positions are ranked by cumulative total strokes from finalized weeks, not average. Team standings use the combined net strokes of all four golfers.</p>
+<h3>Individual season totals</h3>
+<div style="overflow-x:auto">
+<table>
+<thead><tr><th>POS</th><th>PLAYER</th><th>TEAM</th><th>ROUNDS</th><th>TOTAL</th><th>AVG</th></tr></thead>
+<tbody id="seasonPlayers"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+</table>
+</div>
+<h3>Team season totals · Net only</h3>
+<div style="overflow-x:auto">
+<table>
+<thead><tr><th>POS</th><th>TEAM</th><th>WEEKS</th><th>SEASON NET</th><th>STATUS</th></tr></thead>
+<tbody id="seasonTeams"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+</table>
+</div>
+</section>
+
+<section class="panel" id="weeklyArchive">
+<div class="row">
+<div>
+<div class="eyebrow">LEAGUE HISTORY</div>
+<h2 style="margin-top:9px">Weekly Results Archive</h2>
+</div>
+<span class="pill" id="completedCount">0 COMPLETED WEEKS</span>
+</div>
+<p class="season-note">Choose a completed week to see individual gross/net rankings and all five team net totals.</p>
+<div class="toolbar">
+<select id="archiveWeek" aria-label="Completed week"></select>
+<div class="tabs">
+<button id="archiveIndividual" class="active">Individuals</button>
+<button id="archiveTeams">Teams</button>
+</div>
+<div class="tabs" id="archiveScoreTabs">
+<button id="archiveGross" class="active">Gross</button>
+<button id="archiveNet">Net</button>
+</div>
+</div>
+<div style="overflow-x:auto">
+<table>
+<thead id="archiveHead"></thead>
+<tbody id="archiveBody"><tr><td class="empty">Loading…</td></tr></tbody>
+</table>
+</div>
+</section>
+
+<section class="panel">
+<div class="row">
+<h2>Season tournament archive</h2>
+<span class="pill" id="weekCount">8 WEEKS</span>
+</div>
+<div id="archive" class="muted">Loading tournament schedule…</div>
+</section>
+
+<section class="panel">
+<div class="row">
+<h2>SGT live tournament boards</h2>
+<span class="pill">SOURCE LEADERBOARDS</span>
+</div>
+<p class="muted">Official live SGT boards for the current week. Completed scores are imported into Supabase by the automatic SGT score importer.</p>
+<div class="embedgrid">
+<div>
+<h3>Club 1 · <span id="id1Label">83765</span></h3>
+<iframe id="frame1" title="SGT Club 1 gross standings" loading="lazy"></iframe>
+<p><a id="link1" target="_blank" rel="noopener">Open on SGT ↗</a></p>
+</div>
+<div>
+<h3>Club 2 · <span id="id2Label">83767</span></h3>
+<iframe id="frame2" title="SGT Club 2 gross standings" loading="lazy"></iframe>
+<p><a id="link2" target="_blank" rel="noopener">Open on SGT ↗</a></p>
+</div>
+</div>
+</section>
+</div>
+</main>
+
+<footer>
+<div class="wrap">© Taylorville SGL · Independent league website · Not affiliated with Simulator Golf Tour</div>
+</footer>
+
 <script src="standings.js"></script>
 <script>
 'use strict';
-const $=id=>document.getElementById(id);
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let db=null,currentWeek=4,view='gross',seasonView='gross',archiveView='gross',archiveCategory='individual',archiveWeek=3;
-const byScore=(a,b,k)=>a[k]-b[k]||String(a.username||a.team).localeCompare(String(b.username||b.team));
-const isScore=x=>typeof x==='number'&&Number.isFinite(x);
-function setButtons(ids,active){ids.forEach(id=>$(id).classList.toggle('active',id===active));}
-function rowsWithRanks(items,field,renderer){let prev=null,rank=0;return items.map((item,i)=>{if(prev===null||item[field]!==prev)rank=i+1;prev=item[field];return renderer(item,rank)}).join('');}
-function teamMap(){const names=new Map(db.teams.map(t=>[t.id,t.team_name]));return new Map(db.players.map(p=>[p.username.trim().toLowerCase(),names.get(p.team_id)||'Unassigned']));}
-function weekScores(number){return db.scores.filter(s=>s.week_number===number&&String(s.status||'played').toLowerCase()==='played');}
-function completeWeeks(){return db.weeks.filter(w=>w.finalized).sort((a,b)=>a.week_number-b.week_number);}
-function teamResults(number){const teams=new Map(db.teams.map(t=>[t.team_name,{team:t.team_name,total:0,count:0}]));const assignments=teamMap();for(const s of weekScores(number)){const name=assignments.get(s.username.trim().toLowerCase());const t=teams.get(name);if(t&&isScore(s.net_strokes)){t.total+=s.net_strokes;t.count++;}}return [...teams.values()].map(t=>({...t,complete:t.count===4})).sort((a,b)=>Number(b.complete)-Number(a.complete)||(a.complete?a.total:Infinity)-(b.complete?b.total:Infinity)||a.team.localeCompare(b.team));}
-function renderCurrent(){const week=db.weeks.find(w=>w.week_number===currentWeek);$('currentWeekLabel').textContent='CURRENT WEEK • WEEK '+currentWeek;const scores=weekScores(currentWeek);const field=view+'_strokes';$('scoreHead').textContent=view.toUpperCase();const sorted=scores.filter(s=>isScore(s[field])).sort((a,b)=>byScore(a,b,field));$('board').innerHTML=sorted.length?rowsWithRanks(sorted,field,(s,rank)=>`<tr><td class="tag">${rank}</td><td>${esc(s.username)}</td><td>—</td><td>18</td><td><strong>${s[field]}</strong></td></tr>`):'<tr><td colspan="5" class="empty">No combined scores entered for this week.</td></tr>';const teams=teamResults(currentWeek);$('weeklyTeams').innerHTML=teams.map((t,i)=>`<tr><td class="tag">${t.complete?i+1:'—'}</td><td>${esc(t.team)}</td><td>${t.count}/4</td><td><strong>${t.complete?t.total:'—'}</strong></td><td>${t.complete?'Complete':'Pending'}</td></tr>`).join('');const ids=[week?.tournament_1_id,week?.tournament_2_id];ids.forEach((id,i)=>{const n=i+1;const val=id==null?'':String(id);$('id'+n+'Label').textContent=val||'Not set';const url=val?`https://simulatorgolftour.com/embed/tournament/${encodeURIComponent(val)}/standings/${view}?theme=dark`:'';if(url){$('link'+n).href=url;if($('frame'+n).getAttribute('src')!==url)$('frame'+n).src=url;}else{$('link'+n).removeAttribute('href');$('frame'+n).removeAttribute('src');}});}
-function renderSeason(){const completed=completeWeeks();const assignments=teamMap(),players=new Map();for(const w of completed){for(const s of weekScores(w.week_number)){if(!isScore(s.gross_strokes)||!isScore(s.net_strokes))continue;const key=s.username.trim().toLowerCase();if(!players.has(key))players.set(key,{username:s.username,team:assignments.get(key)||'Unassigned',rounds:0,gross_strokes:0,net_strokes:0});const p=players.get(key);p.rounds++;p.gross_strokes+=s.gross_strokes;p.net_strokes+=s.net_strokes;}}
-const field=seasonView+'_strokes';const ranked=[...players.values()].sort((a,b)=>byScore(a,b,field));$('seasonPlayers').innerHTML=ranked.length?rowsWithRanks(ranked,field,(p,rank)=>`<tr><td class="tag">${rank}</td><td>${esc(p.username)}</td><td>${esc(p.team)}</td><td>${p.rounds}</td><td><strong>${p[field]}</strong></td><td>${(p[field]/p.rounds).toFixed(2)}</td></tr>`):'<tr><td colspan="6" class="empty">No finalized rounds yet.</td></tr>';
-const totals=new Map(db.teams.map(t=>[t.team_name,{team:t.team_name,weeks:0,total:0}]));for(const w of completed){for(const t of teamResults(w.week_number)){if(t.complete){const target=totals.get(t.team);target.weeks++;target.total+=t.total;}}}const teamRows=[...totals.values()].sort((a,b)=>b.weeks-a.weeks||a.total-b.total||a.team.localeCompare(b.team));$('seasonTeams').innerHTML=teamRows.map((t,i)=>`<tr><td class="tag">${t.weeks?i+1:'—'}</td><td>${esc(t.team)}</td><td>${t.weeks}</td><td><strong>${t.weeks?t.total:'—'}</strong></td><td>${t.weeks===completed.length?'Complete':'Incomplete'}</td></tr>`).join('');}
-function renderArchive(){const completed=completeWeeks();$('completedCount').textContent=completed.length+' COMPLETED WEEKS';const sel=$('archiveWeek');if(!completed.some(w=>w.week_number===archiveWeek))archiveWeek=completed.at(-1)?.week_number??0;sel.innerHTML=completed.map(w=>`<option value="${w.week_number}">Week ${w.week_number}${w.course_name?' · '+esc(w.course_name):''}</option>`).join('');sel.value=String(archiveWeek);$('archiveScoreTabs').style.display=archiveCategory==='teams'?'none':'';if(!archiveWeek){$('archiveHead').innerHTML='';$('archiveBody').innerHTML='<tr><td class="empty">No finalized weeks yet.</td></tr>';return;}
-if(archiveCategory==='individual'){const field=archiveView+'_strokes';const scores=weekScores(archiveWeek).filter(s=>isScore(s[field])).sort((a,b)=>byScore(a,b,field));$('archiveHead').innerHTML='<tr><th>POS</th><th>GOLFER</th><th>STROKES</th></tr>';$('archiveBody').innerHTML=rowsWithRanks(scores,field,(s,rank)=>`<tr><td class="tag">${rank}</td><td>${esc(s.username)}</td><td><strong>${s[field]}</strong></td></tr>`)||'<tr><td colspan="3" class="empty">No scores available.</td></tr>';}else{const teams=teamResults(archiveWeek);$('archiveHead').innerHTML='<tr><th>POS</th><th>TEAM</th><th>PLAYERS</th><th>NET STROKES</th></tr>';$('archiveBody').innerHTML=teams.map((t,i)=>`<tr><td class="tag">${t.complete?i+1:'—'}</td><td>${esc(t.team)}</td><td>${t.count}/4</td><td><strong>${t.complete?t.total:'Incomplete'}</strong></td></tr>`).join('');}}
-function renderSchedule(){const weeks=[...db.weeks].sort((a,b)=>a.week_number-b.week_number);$('weekCount').textContent=weeks.length+' WEEKS';$('archive').innerHTML=weeks.map(w=>`<div class="row" style="padding:12px 0;border-bottom:1px solid #33312b"><div><strong>Week ${w.week_number}</strong><div class="small muted">${w.finalized?'Finalized':w.week_number===currentWeek?'Current week':'Upcoming'}${w.course_name?' · '+esc(w.course_name):''} · ${weekScores(w.week_number).length} recorded rounds</div></div>${w.finalized?`<button class="btn secondary" data-archive-week="${w.week_number}">View results</button>`:''}</div>`).join('');document.querySelectorAll('[data-archive-week]').forEach(btn=>btn.onclick=()=>{archiveWeek=Number(btn.dataset.archiveWeek);renderArchive();$('weeklyArchive').scrollIntoView({behavior:'smooth'});});}
-function renderAll(){renderCurrent();renderSeason();renderArchive();renderSchedule();}
-$('grossBtn').onclick=()=>{view='gross';setButtons(['grossBtn','netBtn'],'grossBtn');renderCurrent()};$('netBtn').onclick=()=>{view='net';setButtons(['grossBtn','netBtn'],'netBtn');renderCurrent()};$('seasonGross').onclick=()=>{seasonView='gross';setButtons(['seasonGross','seasonNet'],'seasonGross');renderSeason()};$('seasonNet').onclick=()=>{seasonView='net';setButtons(['seasonGross','seasonNet'],'seasonNet');renderSeason()};$('archiveIndividual').onclick=()=>{archiveCategory='individual';setButtons(['archiveIndividual','archiveTeams'],'archiveIndividual');renderArchive()};$('archiveTeams').onclick=()=>{archiveCategory='teams';setButtons(['archiveIndividual','archiveTeams'],'archiveTeams');renderArchive()};$('archiveGross').onclick=()=>{archiveView='gross';setButtons(['archiveGross','archiveNet'],'archiveGross');renderArchive()};$('archiveNet').onclick=()=>{archiveView='net';setButtons(['archiveGross','archiveNet'],'archiveNet');renderArchive()};$('archiveWeek').onchange=e=>{archiveWeek=Number(e.target.value);renderArchive()};
-(async()=>{try{if(typeof loadSGLStandings!=='function')throw Error('standings.js did not load.');db=await loadSGLStandings();const unfinished=db.weeks.filter(w=>!w.finalized).sort((a,b)=>a.week_number-b.week_number);currentWeek=unfinished[0]?.week_number??(Math.max(0,...db.weeks.map(w=>w.week_number))+1);renderAll();$('loadStatus').textContent=`League data loaded · ${db.players.length} golfers · ${completeWeeks().length} completed weeks`;}catch(err){console.error('Taylorville SGL standings error:',err);$('loadStatus').className='error';$('loadStatus').textContent='Standings could not load: '+err.message;for(const id of ['board','weeklyTeams','seasonPlayers','seasonTeams','archiveBody'])$(id).innerHTML='<tr><td class="empty">Unable to load standings. Please refresh later.</td></tr>';}})();
-</script></body></html>
+
+const $ = id => document.getElementById(id);
+
+const esc = s => String(s ?? '').replace(
+  /[&<>"']/g,
+  c => ({
+    '&':'&amp;',
+    '<':'&lt;',
+    '>':'&gt;',
+    '"':'&quot;',
+    "'":'&#39;'
+  }[c])
+);
+
+let db = null;
+let currentWeek = 4;
+let view = 'gross';
+let seasonView = 'gross';
+let archiveView = 'gross';
+let archiveCategory = 'individual';
+let archiveWeek = 3;
+
+const byScore = (a,b,k) =>
+  a[k]-b[k] ||
+  String(a.username||a.team).localeCompare(String(b.username||b.team));
+
+const isScore = x =>
+  typeof x === 'number' && Number.isFinite(x);
+
+function setButtons(ids,active){
+  ids.forEach(id =>
+    $(id).classList.toggle('active',id===active)
+  );
+}
+
+function rowsWithRanks(items,field,renderer){
+  let prev=null,rank=0;
+  return items.map((item,i)=>{
+    if(prev===null || item[field]!==prev) rank=i+1;
+    prev=item[field];
+    return renderer(item,rank);
+  }).join('');
+}
+
+function teamMap(){
+  const names=new Map(
+    db.teams.map(t=>[t.id,t.team_name])
+  );
+  return new Map(
+    db.players.map(p=>[
+      p.username.trim().toLowerCase(),
+      names.get(p.team_id)||'Unassigned'
+    ])
+  );
+}
+
+function weekScores(number){
+  return db.scores.filter(s=>
+    s.week_number===number &&
+    String(s.status||'played').toLowerCase()==='played'
+  );
+}
+
+function completeWeeks(){
+  return db.weeks
+    .filter(w=>w.finalized)
+    .sort((a,b)=>a.week_number-b.week_number);
+}
+
+function teamResults(number){
+  const teams=new Map(
+    db.teams.map(t=>[
+      t.team_name,
+      {team:t.team_name,total:0,count:0}
+    ])
+  );
+
+  const assignments=teamMap();
+
+  for(const s of weekScores(number)){
+    const name=assignments.get(
+      s.username.trim().toLowerCase()
+    );
+    const t=teams.get(name);
+
+    if(t && isScore(s.net_strokes)){
+      t.total+=s.net_strokes;
+      t.count++;
+    }
+  }
+
+  return [...teams.values()]
+    .map(t=>({...t,complete:t.count===4}))
+    .sort((a,b)=>
+      Number(b.complete)-Number(a.complete) ||
+      (a.complete?a.total:Infinity)-
+      (b.complete?b.total:Infinity) ||
+      a.team.localeCompare(b.team)
+    );
+}
+
+function renderCurrent(){
+  const week=db.weeks.find(
+    w=>w.week_number===currentWeek
+  );
+
+  $('currentWeekLabel').textContent=
+    'CURRENT WEEK • WEEK '+currentWeek;
+
+  const scores=weekScores(currentWeek);
+  const field=view+'_strokes';
+
+  $('scoreHead').textContent=view.toUpperCase();
+
+  const sorted=scores
+    .filter(s=>isScore(s[field]))
+    .sort((a,b)=>byScore(a,b,field));
+
+  $('board').innerHTML=sorted.length
+    ?rowsWithRanks(sorted,field,(s,rank)=>`
+      <tr>
+        <td class="tag">${rank}</td>
+        <td>${esc(s.username)}</td>
+        <td>—</td>
+        <td>18</td>
+        <td><strong>${s[field]}</strong></td>
+      </tr>`)
+    :'<tr><td colspan="5" class="empty">No combined scores entered for this week.</td></tr>';
+
+  // UPDATED: Display running weekly team net totals.
+  // A team remains Pending until all four golfers finish.
+  const teams=teamResults(currentWeek);
+
+  $('weeklyTeams').innerHTML=teams.map((t,i)=>{
+    const runningNet=t.count>0
+      ?(t.total>0?'+':'')+t.total
+      :'—';
+
+    return `
+      <tr>
+        <td class="tag">${t.complete?i+1:'—'}</td>
+        <td>${esc(t.team)}</td>
+        <td>${t.count}/4</td>
+        <td><strong>${runningNet}</strong></td>
+        <td>${t.complete?'Complete':'Pending'}</td>
+      </tr>`;
+  }).join('');
+
+  const ids=[
+    week?.tournament_1_id,
+    week?.tournament_2_id
+  ];
+
+  ids.forEach((id,i)=>{
+    const n=i+1;
+    const val=id==null?'':String(id);
+
+    $('id'+n+'Label').textContent=val||'Not set';
+
+    const url=val
+      ?`https://simulatorgolftour.com/embed/tournament/${encodeURIComponent(val)}/standings/${view}?theme=dark`
+      :'';
+
+    if(url){
+      $('link'+n).href=url;
+      if($('frame'+n).getAttribute('src')!==url){
+        $('frame'+n).src=url;
+      }
+    }else{
+      $('link'+n).removeAttribute('href');
+      $('frame'+n).removeAttribute('src');
+    }
+  });
+}
+
+function renderSeason(){
+  const completed=completeWeeks();
+  const assignments=teamMap();
+  const players=new Map();
+
+  for(const w of completed){
+    for(const s of weekScores(w.week_number)){
+      if(
+        !isScore(s.gross_strokes) ||
+        !isScore(s.net_strokes)
+      ) continue;
+
+      const key=s.username.trim().toLowerCase();
+
+      if(!players.has(key)){
+        players.set(key,{
+          username:s.username,
+          team:assignments.get(key)||'Unassigned',
+          rounds:0,
+          gross_strokes:0,
+          net_strokes:0
+        });
+      }
+
+      const p=players.get(key);
+      p.rounds++;
+      p.gross_strokes+=s.gross_strokes;
+      p.net_strokes+=s.net_strokes;
+    }
+  }
+
+  const field=seasonView+'_strokes';
+
+  const ranked=[...players.values()]
+    .sort((a,b)=>byScore(a,b,field));
+
+  $('seasonPlayers').innerHTML=ranked.length
+    ?rowsWithRanks(ranked,field,(p,rank)=>`
+      <tr>
+        <td class="tag">${rank}</td>
+        <td>${esc(p.username)}</td>
+        <td>${esc(p.team)}</td>
+        <td>${p.rounds}</td>
+        <td><strong>${p[field]}</strong></td>
+        <td>${(p[field]/p.rounds).toFixed(2)}</td>
+      </tr>`)
+    :'<tr><td colspan="6" class="empty">No finalized rounds yet.</td></tr>';
+
+  const totals=new Map(
+    db.teams.map(t=>[
+      t.team_name,
+      {team:t.team_name,weeks:0,total:0}
+    ])
+  );
+
+  for(const w of completed){
+    for(const t of teamResults(w.week_number)){
+      if(t.complete){
+        const target=totals.get(t.team);
+        target.weeks++;
+        target.total+=t.total;
+      }
+    }
+  }
+
+  const teamRows=[...totals.values()]
+    .sort((a,b)=>
+      b.weeks-a.weeks ||
+      a.total-b.total ||
+      a.team.localeCompare(b.team)
+    );
+
+  $('seasonTeams').innerHTML=teamRows.map((t,i)=>`
+    <tr>
+      <td class="tag">${t.weeks?i+1:'—'}</td>
+      <td>${esc(t.team)}</td>
+      <td>${t.weeks}</td>
+      <td><strong>${t.weeks?t.total:'—'}</strong></td>
+      <td>${t.weeks===completed.length?'Complete':'Incomplete'}</td>
+    </tr>
+  `).join('');
+}
+
+function renderArchive(){
+  const completed=completeWeeks();
+
+  $('completedCount').textContent=
+    completed.length+' COMPLETED WEEKS';
+
+  const sel=$('archiveWeek');
+
+  if(!completed.some(w=>w.week_number===archiveWeek)){
+    archiveWeek=completed.at(-1)?.week_number??0;
+  }
+
+  sel.innerHTML=completed.map(w=>`
+    <option value="${w.week_number}">
+      Week ${w.week_number}${w.course_name?' · '+esc(w.course_name):''}
+    </option>
+  `).join('');
+
+  sel.value=String(archiveWeek);
+
+  $('archiveScoreTabs').style.display=
+    archiveCategory==='teams'?'none':'';
+
+  if(!archiveWeek){
+    $('archiveHead').innerHTML='';
+    $('archiveBody').innerHTML=
+      '<tr><td class="empty">No finalized weeks yet.</td></tr>';
+    return;
+  }
+
+  if(archiveCategory==='individual'){
+    const field=archiveView+'_strokes';
+
+    const scores=weekScores(archiveWeek)
+      .filter(s=>isScore(s[field]))
+      .sort((a,b)=>byScore(a,b,field));
+
+    $('archiveHead').innerHTML=
+      '<tr><th>POS</th><th>GOLFER</th><th>STROKES</th></tr>';
+
+    $('archiveBody').innerHTML=
+      rowsWithRanks(scores,field,(s,rank)=>`
+        <tr>
+          <td class="tag">${rank}</td>
+          <td>${esc(s.username)}</td>
+          <td><strong>${s[field]}</strong></td>
+        </tr>
+      `) ||
+      '<tr><td colspan="3" class="empty">No scores available.</td></tr>';
+
+  }else{
+    const teams=teamResults(archiveWeek);
+
+    $('archiveHead').innerHTML=
+      '<tr><th>POS</th><th>TEAM</th><th>PLAYERS</th><th>NET STROKES</th></tr>';
+
+    $('archiveBody').innerHTML=teams.map((t,i)=>`
+      <tr>
+        <td class="tag">${t.complete?i+1:'—'}</td>
+        <td>${esc(t.team)}</td>
+        <td>${t.count}/4</td>
+        <td><strong>${t.complete?t.total:'Incomplete'}</strong></td>
+      </tr>
+    `).join('');
+  }
+}
+
+function renderSchedule(){
+  const weeks=[...db.weeks]
+    .sort((a,b)=>a.week_number-b.week_number);
+
+  $('weekCount').textContent=weeks.length+' WEEKS';
+
+  $('archive').innerHTML=weeks.map(w=>`
+    <div class="row" style="padding:12px 0;border-bottom:1px solid #33312b">
+      <div>
+        <strong>Week ${w.week_number}</strong>
+        <div class="small muted">
+          ${w.finalized?'Finalized':w.week_number===currentWeek?'Current week':'Upcoming'}
+          ${w.course_name?' · '+esc(w.course_name):''}
+          · ${weekScores(w.week_number).length} recorded rounds
+        </div>
+      </div>
+      ${w.finalized
+        ?`<button class="btn secondary" data-archive-week="${w.week_number}">View results</button>`
+        :''}
+    </div>
+  `).join('');
+
+  document.querySelectorAll('[data-archive-week]')
+    .forEach(btn=>btn.onclick=()=>{
+      archiveWeek=Number(btn.dataset.archiveWeek);
+      renderArchive();
+      $('weeklyArchive').scrollIntoView({behavior:'smooth'});
+    });
+}
+
+function renderAll(){
+  renderCurrent();
+  renderSeason();
+  renderArchive();
+  renderSchedule();
+}
+
+$('grossBtn').onclick=()=>{
+  view='gross';
+  setButtons(['grossBtn','netBtn'],'grossBtn');
+  renderCurrent();
+};
+
+$('netBtn').onclick=()=>{
+  view='net';
+  setButtons(['grossBtn','netBtn'],'netBtn');
+  renderCurrent();
+};
+
+$('seasonGross').onclick=()=>{
+  seasonView='gross';
+  setButtons(['seasonGross','seasonNet'],'seasonGross');
+  renderSeason();
+};
+
+$('seasonNet').onclick=()=>{
+  seasonView='net';
+  setButtons(['seasonGross','seasonNet'],'seasonNet');
+  renderSeason();
+};
+
+$('archiveIndividual').onclick=()=>{
+  archiveCategory='individual';
+  setButtons(['archiveIndividual','archiveTeams'],'archiveIndividual');
+  renderArchive();
+};
+
+$('archiveTeams').onclick=()=>{
+  archiveCategory='teams';
+  setButtons(['archiveIndividual','archiveTeams'],'archiveTeams');
+  renderArchive();
+};
+
+$('archiveGross').onclick=()=>{
+  archiveView='gross';
+  setButtons(['archiveGross','archiveNet'],'archiveGross');
+  renderArchive();
+};
+
+$('archiveNet').onclick=()=>{
+  archiveView='net';
+  setButtons(['archiveGross','archiveNet'],'archiveNet');
+  renderArchive();
+};
+
+$('archiveWeek').onchange=e=>{
+  archiveWeek=Number(e.target.value);
+  renderArchive();
+};
+
+(async()=>{
+  try{
+    if(typeof loadSGLStandings!=='function'){
+      throw Error('standings.js did not load.');
+    }
+
+    db=await loadSGLStandings();
+
+    const unfinished=db.weeks
+      .filter(w=>!w.finalized)
+      .sort((a,b)=>a.week_number-b.week_number);
+
+    currentWeek=unfinished[0]?.week_number ??
+      (Math.max(0,...db.weeks.map(w=>w.week_number))+1);
+
+    renderAll();
+
+    $('loadStatus').textContent=
+      `League data loaded · ${db.players.length} golfers · ${completeWeeks().length} completed weeks`;
+
+  }catch(err){
+    console.error('Taylorville SGL standings error:',err);
+
+    $('loadStatus').className='error';
+    $('loadStatus').textContent=
+      'Standings could not load: '+err.message;
+
+    for(const id of [
+      'board',
+      'weeklyTeams',
+      'seasonPlayers',
+      'seasonTeams',
+      'archiveBody'
+    ]){
+      $(id).innerHTML=
+        '<tr><td class="empty">Unable to load standings. Please refresh later.</td></tr>';
+    }
+  }
+})();
+</script>
+</body>
+</html>
