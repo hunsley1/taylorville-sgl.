@@ -24,7 +24,7 @@ jobs:
 
           # First ID is confirmed. Add the
           # second Week 4 ID when verified.
-          TOURNAMENT_IDS = ["83767"]
+          TOURNAMENT_IDS = ["83765","83767"]
 
           class Reader(HTMLParser):
               def __init__(self):
