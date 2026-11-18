@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Extract all SGT scores
+      - name: Check both tournaments
         run: |
           python3 - <<'PY'
           import re
@@ -22,9 +22,11 @@ jobs:
           from html import unescape
           from html.parser import HTMLParser
 
-          TOURNAMENT_ID = "83767"
+          # First ID is confirmed. Add the
+          # second Week 4 ID when verified.
+          TOURNAMENT_IDS = ["83767"]
 
-          class TableReader(HTMLParser):
+          class Reader(HTMLParser):
               def __init__(self):
                   super().__init__()
                   self.rows = []
@@ -45,24 +47,25 @@ jobs:
               def handle_endtag(self, tag):
                   if tag in ("td", "th"):
                       if self.cell is not None:
-                          value = " ".join(
-                              "".join(self.cell).split()
+                          self.row.append(
+                              unescape(
+                                  " ".join(
+                                      "".join(self.cell).split()
+                                  )
+                              )
                           )
-                          self.row.append(unescape(value))
                           self.cell = None
                   elif tag == "tr":
                       if self.row:
                           self.rows.append(self.row)
                       self.row = None
 
-          for score_type in ("gross", "net"):
+          def get_scores(tournament, score_type):
               url = (
                   "https://simulatorgolftour.com/"
-                  f"embed/tournament/{TOURNAMENT_ID}/"
+                  f"embed/tournament/{tournament}/"
                   f"standings/{score_type}?theme=dark"
               )
-
-              print(f"\n=== {score_type.upper()} ===")
 
               request = urllib.request.Request(
                   url,
@@ -76,19 +79,44 @@ jobs:
                       "utf-8", errors="replace"
                   )
 
-              parser = TableReader()
+              parser = Reader()
               parser.feed(html)
+              return parser.rows[1:]
 
-              print("HTTP status: 200")
-              print("Rows found:", len(parser.rows))
+          for tournament in TOURNAMENT_IDS:
+              print(f"\nTOURNAMENT {tournament}")
 
-              for row in parser.rows:
-                  print(" | ".join(row))
-
-              if not parser.rows:
-                  print("No HTML table rows found.")
-                  print(
-                      "HTML sample:",
-                      re.sub(r"\s+", " ", html)[:600]
+              try:
+                  gross = get_scores(
+                      tournament, "gross"
                   )
+                  net = get_scores(
+                      tournament, "net"
+                  )
+
+                  print("Gross players:", len(gross))
+                  print("Net players:", len(net))
+
+                  print("\nGROSS:")
+                  for row in gross:
+                      print(" | ".join(row))
+
+                  print("\nNET:")
+                  for row in net:
+                      print(" | ".join(row))
+
+                  print("\nFINISHED GROSS ROUNDS:")
+                  for row in gross:
+                      if len(row) >= 4:
+                          if re.search(
+                              r"\bF\b", row[2]
+                          ):
+                              print(" | ".join(row))
+
+              except Exception as error:
+                  print(
+                      "Tournament check failed:",
+                      error
+                  )
+                  raise
           PY
