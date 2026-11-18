@@ -24,20 +24,16 @@ jobs:
           import os
           import re
           import json
+          import time
           import urllib.request
-          import urllib.parse
+          import urllib.error
           from html import unescape
           from html.parser import HTMLParser
 
-          # Map league weeks to SGT tournaments.
-          # Add future weeks here.
           TOURNAMENTS = {
               4: ["83767"],
           }
 
-          # SGT usernames that differ from Supabase.
-          # Keys are SGT usernames, values are
-          # official league roster usernames.
           SGT_ALIASES = {
               "mikefnhoncho47": "MIKEFNHONCH047",
           }
@@ -47,7 +43,7 @@ jobs:
 
           if not KEY:
               raise RuntimeError(
-                  "Missing SUPABASE_SERVICE_ROLE_KEY GitHub secret"
+                  "Missing SUPABASE_SERVICE_ROLE_KEY"
               )
 
           def request_json(path, method="GET", data=None):
@@ -77,10 +73,7 @@ jobs:
                   req, timeout=30
               ) as response:
                   content = response.read()
-                  return (
-                      json.loads(content)
-                      if content else []
-                  )
+                  return json.loads(content) if content else []
 
           class Reader(HTMLParser):
               def __init__(self):
@@ -123,23 +116,62 @@ jobs:
                   f"standings/{kind}?theme=dark"
               )
 
-              req = urllib.request.Request(
-                  url,
-                  headers={
-                      "User-Agent": "Mozilla/5.0"
-                  },
+              for attempt in range(1, 4):
+                  try:
+                      print(
+                          f"SGT {kind} request "
+                          f"attempt {attempt}/3: {url}",
+                          flush=True
+                      )
+
+                      req = urllib.request.Request(
+                          url,
+                          headers={
+                              "User-Agent": "Mozilla/5.0",
+                              "Accept": "text/html",
+                          },
+                      )
+
+                      with urllib.request.urlopen(
+                          req, timeout=30
+                      ) as response:
+                          html = response.read().decode(
+                              "utf-8",
+                              errors="replace"
+                          )
+
+                      parser = Reader()
+                      parser.feed(html)
+
+                      print(
+                          f"SGT {kind}: "
+                          f"{len(parser.rows)} table rows",
+                          flush=True
+                      )
+
+                      return parser.rows[1:]
+
+                  except (
+                      urllib.error.URLError,
+                      TimeoutError,
+                      ConnectionError,
+                  ) as error:
+                      print(
+                          f"SGT {kind} attempt "
+                          f"{attempt}/3 failed: "
+                          f"{type(error).__name__}: {error}",
+                          flush=True
+                      )
+
+                      if attempt < 3:
+                          time.sleep(5 * attempt)
+
+              print(
+                  f"ERROR: SGT {kind} unavailable "
+                  f"after 3 attempts.",
+                  flush=True
               )
-
-              with urllib.request.urlopen(
-                  req, timeout=30
-              ) as response:
-                  html = response.read().decode(
-                      "utf-8", errors="replace"
-                  )
-
-              parser = Reader()
-              parser.feed(html)
-              return parser.rows[1:]
+              return None
 
           def relative_score(value):
               match = re.search(
@@ -155,9 +187,7 @@ jobs:
           def finished(row):
               return (
                   len(row) >= 4
-                  and bool(
-                      re.search(r"\bF\b", row[2])
-                  )
+                  and bool(re.search(r"\bF\b", row[2]))
               )
 
           players = request_json(
@@ -170,51 +200,41 @@ jobs:
               for p in players
           }
 
-          print(f"Loaded {len(roster)} league players")
+          print(
+              f"Loaded {len(roster)} league players",
+              flush=True
+          )
 
           def match_player(raw):
               name = " ".join(raw.split()).casefold()
 
-              # First try an exact match.
-              if name in roster:
-                  return roster[name]
-
-              # Remove an optional trailing handicap
-              # from the SGT net leaderboard.
               candidates = [name]
 
-              handicap_match = re.fullmatch(
+              handicap = re.fullmatch(
                   r"(.+?)\s+[-+]?\d+",
-                  name,
+                  name
               )
 
-              if handicap_match:
-                  candidates.append(
-                      handicap_match.group(1)
-                  )
+              if handicap:
+                  candidates.append(handicap.group(1))
 
-              # Try official SGT username aliases.
               for candidate in candidates:
-                  alias = SGT_ALIASES.get(candidate)
+                  if candidate in roster:
+                      return roster[candidate]
 
+                  alias = SGT_ALIASES.get(candidate)
                   if alias:
                       actual = roster.get(
                           alias.strip().casefold()
                       )
-
                       if actual:
                           return actual
 
                       print(
-                          "WARNING: Alias target not "
-                          "found in league roster:",
+                          "WARNING: Alias target "
+                          "missing from roster:",
                           alias
                       )
-
-              # Try the username without handicap.
-              for candidate in candidates:
-                  if candidate in roster:
-                      return roster[candidate]
 
               return None
 
@@ -230,14 +250,14 @@ jobs:
 
                   if player is None:
                       print(
-                          f"Skipping unmatched {kind} player:",
+                          f"Unmatched {kind} player:",
                           repr(row[1])
                       )
                       continue
 
                   if score is None:
                       print(
-                          f"Skipping unreadable {kind} score:",
+                          f"Unreadable {kind} score:",
                           player,
                           repr(row[3])
                       )
@@ -245,31 +265,38 @@ jobs:
 
                   scores[player] = score
 
-              print(
-                  f"Matched {kind} scores:",
-                  len(scores)
-              )
-
               return scores
 
           total = 0
+          failed_requests = 0
 
           for week, tournament_ids in TOURNAMENTS.items():
               for tournament in tournament_ids:
                   print(
                       f"Checking Week {week}, "
-                      f"tournament {tournament}"
+                      f"tournament {tournament}",
+                      flush=True
                   )
 
-                  gross = collect(
-                      get_scores(tournament, "gross"),
-                      "gross"
+                  gross_rows = get_scores(
+                      tournament, "gross"
+                  )
+                  net_rows = get_scores(
+                      tournament, "net"
                   )
 
-                  net = collect(
-                      get_scores(tournament, "net"),
-                      "net"
-                  )
+                  if gross_rows is None or net_rows is None:
+                      failed_requests += 1
+                      print(
+                          "Skipping tournament import "
+                          "because SGT data is unavailable. "
+                          "Existing scores remain unchanged.",
+                          flush=True
+                      )
+                      continue
+
+                  gross = collect(gross_rows, "gross")
+                  net = collect(net_rows, "net")
 
                   matched = set(gross) & set(net)
 
@@ -295,21 +322,26 @@ jobs:
                           f"Saved Week {week}: "
                           f"{player}, "
                           f"gross {gross[player]:+d}, "
-                          f"net {net[player]:+d}"
+                          f"net {net[player]:+d}",
+                          flush=True
                       )
 
                   print(
-                      "Matched completed players:",
-                      len(matched)
+                      f"Matched completed players: "
+                      f"{len(matched)}",
+                      flush=True
                   )
 
-                  for player in sorted(
-                      set(gross) ^ set(net)
-                  ):
-                      print(
-                          "Incomplete gross/net pair:",
-                          player
-                      )
+          print(
+              f"Import complete: {total} scores; "
+              f"{failed_requests} tournament "
+              f"requests failed.",
+              flush=True
+          )
 
-          print(f"Import complete: {total} scores")
+          if failed_requests:
+              raise SystemExit(
+                  "SGT connection failed. "
+                  "No existing scores were deleted."
+              )
           PY
