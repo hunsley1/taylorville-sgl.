@@ -35,12 +35,19 @@ jobs:
               4: ["83767"],
           }
 
+          # SGT usernames that differ from Supabase.
+          # Keys are SGT usernames, values are
+          # official league roster usernames.
+          SGT_ALIASES = {
+              "mikefnhoncho47": "MIKEFNHONCH047",
+          }
+
           BASE = os.environ["SUPABASE_URL"].rstrip("/")
           KEY = os.environ.get("SUPABASE_KEY", "")
 
           if not KEY:
               raise RuntimeError(
-                  "Missing SUPABASE_SECRET_KEY GitHub secret"
+                  "Missing SUPABASE_SERVICE_ROLE_KEY GitHub secret"
               )
 
           def request_json(path, method="GET", data=None):
@@ -163,30 +170,55 @@ jobs:
               for p in players
           }
 
+          print(f"Loaded {len(roster)} league players")
+
           def match_player(raw):
               name = " ".join(raw.split()).casefold()
 
+              # First try an exact match.
               if name in roster:
                   return roster[name]
 
-              # SGT net standings may append
-              # a handicap, e.g. "Mason 8".
-              matches = [
-                  actual
-                  for key, actual in roster.items()
-                  if re.fullmatch(
-                      re.escape(key) + r"\s+\d+",
-                      name,
-                  )
-              ]
+              # Remove an optional trailing handicap
+              # from the SGT net leaderboard.
+              candidates = [name]
 
-              return (
-                  matches[0]
-                  if len(matches) == 1
-                  else None
+              handicap_match = re.fullmatch(
+                  r"(.+?)\s+[-+]?\d+",
+                  name,
               )
 
-          def collect(rows):
+              if handicap_match:
+                  candidates.append(
+                      handicap_match.group(1)
+                  )
+
+              # Try official SGT username aliases.
+              for candidate in candidates:
+                  alias = SGT_ALIASES.get(candidate)
+
+                  if alias:
+                      actual = roster.get(
+                          alias.strip().casefold()
+                      )
+
+                      if actual:
+                          return actual
+
+                      print(
+                          "WARNING: Alias target not "
+                          "found in league roster:",
+                          alias
+                      )
+
+              # Try the username without handicap.
+              for candidate in candidates:
+                  if candidate in roster:
+                      return roster[candidate]
+
+              return None
+
+          def collect(rows, kind):
               scores = {}
 
               for row in rows:
@@ -198,19 +230,25 @@ jobs:
 
                   if player is None:
                       print(
-                          "Skipping unmatched player:",
-                          row[1]
+                          f"Skipping unmatched {kind} player:",
+                          repr(row[1])
                       )
                       continue
 
                   if score is None:
                       print(
-                          "Skipping unreadable score:",
-                          player
+                          f"Skipping unreadable {kind} score:",
+                          player,
+                          repr(row[3])
                       )
                       continue
 
                   scores[player] = score
+
+              print(
+                  f"Matched {kind} scores:",
+                  len(scores)
+              )
 
               return scores
 
@@ -224,15 +262,18 @@ jobs:
                   )
 
                   gross = collect(
-                      get_scores(tournament, "gross")
-                  )
-                  net = collect(
-                      get_scores(tournament, "net")
+                      get_scores(tournament, "gross"),
+                      "gross"
                   )
 
-                  for player in sorted(
-                      set(gross) & set(net)
-                  ):
+                  net = collect(
+                      get_scores(tournament, "net"),
+                      "net"
+                  )
+
+                  matched = set(gross) & set(net)
+
+                  for player in sorted(matched):
                       record = {
                           "week_number": week,
                           "username": player,
@@ -249,6 +290,7 @@ jobs:
                       )
 
                       total += 1
+
                       print(
                           f"Saved Week {week}: "
                           f"{player}, "
@@ -257,9 +299,17 @@ jobs:
                       )
 
                   print(
-                      f"Matched completed players: "
-                      f"{len(set(gross) & set(net))}"
+                      "Matched completed players:",
+                      len(matched)
                   )
+
+                  for player in sorted(
+                      set(gross) ^ set(net)
+                  ):
+                      print(
+                          "Incomplete gross/net pair:",
+                          player
+                      )
 
           print(f"Import complete: {total} scores")
           PY
