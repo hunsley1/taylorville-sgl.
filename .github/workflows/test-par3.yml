@@ -1,0 +1,109 @@
+
+name: Test SGT Par 3 Data
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-par3:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Inspect SGT bullseye data
+        run: |
+          python3 - <<'PY'
+          import re
+          import urllib.request
+          from html.parser import HTMLParser
+
+          SGT = "https://simulatorgolftour.com"
+          TOURNAMENT = "83767"
+
+          class Inspector(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.links = []
+                  self.scripts = []
+                  self.text = []
+
+              def handle_starttag(self, tag, attrs):
+                  attrs = dict(attrs)
+                  if tag in ("a", "script", "iframe"):
+                      url = attrs.get("href") or attrs.get("src")
+                      if url:
+                          self.links.append(url)
+
+              def handle_data(self, data):
+                  value = " ".join(data.split())
+                  if value:
+                      self.text.append(value)
+
+          def fetch(path):
+              url = SGT + path
+              request = urllib.request.Request(
+                  url,
+                  headers={
+                      "User-Agent": "Mozilla/5.0",
+                      "Accept": "text/html,*/*",
+                      "Referer": SGT + "/"
+                  }
+              )
+
+              try:
+                  with urllib.request.urlopen(
+                      request, timeout=30
+                  ) as response:
+                      content = response.read().decode(
+                          "utf-8", "replace"
+                      )
+                      print(
+                          f"URL: {url}\n"
+                          f"HTTP: {response.status}\n"
+                          f"HTML size: {len(content)}",
+                          flush=True
+                      )
+                      return content
+              except Exception as error:
+                  print(
+                      f"Could not retrieve {url}: {error}",
+                      flush=True
+                  )
+                  return ""
+
+          html = fetch(f"/tournament/{TOURNAMENT}")
+
+          if not html:
+              print("Tournament page unavailable.")
+              raise SystemExit(0)
+
+          parser = Inspector()
+          parser.feed(html)
+
+          print("\nPOSSIBLE BULLSEYE DATA:")
+          keywords = (
+              "bullseye", "closest", "proximity",
+              "par3", "par_3", "cttp"
+          )
+
+          matches = [
+              line for line in html.splitlines()
+              if any(k in line.lower() for k in keywords)
+          ]
+
+          for line in matches[:20]:
+              print(line.strip()[:400])
+
+          print("\nRELEVANT PAGE TEXT:")
+          for item in parser.text:
+              if any(k in item.lower() for k in keywords):
+                  print(item[:250])
+
+          print("\nLINKS AND SCRIPTS:")
+          for link in parser.links[:60]:
+              print(link[:250])
+
+          print("\nTEST COMPLETE")
+          PY
