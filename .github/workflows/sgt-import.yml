@@ -9,14 +9,17 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: sgt-score-import
+  cancel-in-progress: false
+
 jobs:
   import-scores:
     runs-on: ubuntu-latest
 
     steps:
       - name: Install HTML parser
-        run: |
-          python3 -m pip install --quiet beautifulsoup4
+        run: python3 -m pip install --quiet beautifulsoup4
 
       - name: Import completed SGT scores
         env:
@@ -29,34 +32,25 @@ jobs:
           import os
           import re
           import time
-          import urllib.error
           import urllib.parse
           import urllib.request
 
           from bs4 import BeautifulSoup
 
-          SUPABASE = os.environ[
-              "SUPABASE_URL"
-          ].rstrip("/")
-
-          KEY = os.environ.get(
-              "SUPABASE_KEY", ""
-          )
-
+          BASE = os.environ["SUPABASE_URL"].rstrip("/")
+          KEY = os.environ.get("SUPABASE_KEY", "")
           SGT = "https://simulatorgolftour.com"
 
-          if not KEY:
-              raise RuntimeError(
-                  "Missing SUPABASE_SERVICE_ROLE_KEY secret"
-              )
-
-          # Known differences between SGT and
-          # Supabase player usernames.
           ALIASES = {
               "mikefnhoncho47": "MIKEFNHONCH047"
           }
 
-          def supabase(path, method="GET", data=None):
+          if not KEY:
+              raise RuntimeError(
+                  "Missing Supabase service role secret"
+              )
+
+          def db(path, method="GET", data=None):
               headers = {
                   "apikey": KEY,
                   "Authorization": "Bearer " + KEY,
@@ -66,9 +60,7 @@ jobs:
               body = None
 
               if data is not None:
-                  body = json.dumps(data).encode(
-                      "utf-8"
-                  )
+                  body = json.dumps(data).encode()
                   headers["Content-Type"] = (
                       "application/json"
                   )
@@ -78,7 +70,7 @@ jobs:
                   )
 
               request = urllib.request.Request(
-                  SUPABASE + "/rest/v1/" + path,
+                  BASE + "/rest/v1/" + path,
                   data=body,
                   headers=headers,
                   method=method
@@ -87,16 +79,17 @@ jobs:
               with urllib.request.urlopen(
                   request, timeout=30
               ) as response:
-                  raw = response.read()
+                  content = response.read()
                   return (
-                      json.loads(raw)
-                      if raw else []
+                      json.loads(content)
+                      if content else []
                   )
 
-          def fetch_sgt(path):
+          def fetch(path):
               url = SGT + path
+              last_error = None
 
-              for attempt in range(1, 4):
+              for attempt in range(3):
                   try:
                       request = urllib.request.Request(
                           url,
@@ -110,45 +103,39 @@ jobs:
                       with urllib.request.urlopen(
                           request, timeout=25
                       ) as response:
-                          if response.status != 200:
-                              raise RuntimeError(
-                                  "HTTP " +
-                                  str(response.status)
-                              )
-
                           return response.read().decode(
                               "utf-8", "replace"
                           )
 
                   except Exception as error:
+                      last_error = error
                       print(
-                          "SGT request failed "
-                          f"{attempt}/3: {url}: "
-                          f"{error}",
+                          f"Request attempt {attempt+1} "
+                          f"failed: {url}: {error}",
                           flush=True
                       )
+                      if attempt < 2:
+                          time.sleep(3 * (attempt+1))
 
-                      if attempt < 3:
-                          time.sleep(attempt * 3)
-
-              return None
+              raise RuntimeError(
+                  f"SGT unavailable: {last_error}"
+              )
 
           def normalize(value):
-              return re.sub(
-                  r"\s+", " ", str(value)
-              ).strip().casefold()
+              return " ".join(
+                  str(value).casefold().split()
+              )
 
-          players = supabase(
+          players = db(
               "sgl_players?select=username"
           )
 
           roster = {
-              normalize(player["username"]):
-              player["username"]
-              for player in players
+              normalize(p["username"]): p["username"]
+              for p in players
           }
 
-          weeks = supabase(
+          weeks = db(
               "sgl_weeks?select="
               "week_number,"
               "tournament_1_id,"
@@ -165,288 +152,194 @@ jobs:
 
           if not roster or not weeks:
               raise RuntimeError(
-                  "League roster or weeks are empty"
+                  "Missing players or weeks"
               )
 
           def match_player(name):
-              cleaned = normalize(name)
+              key = normalize(name)
 
-              candidates = [cleaned]
+              if key in roster:
+                  return roster[key]
 
-              # Remove trailing handicap if present.
-              without_handicap = re.sub(
-                  r"\s+[-+]?\d+(?:\.\d+)?$",
-                  "",
-                  cleaned
-              )
+              alias = ALIASES.get(key)
 
-              if without_handicap != cleaned:
-                  candidates.append(
-                      without_handicap
-                  )
-
-              for candidate in candidates:
-                  if candidate in roster:
-                      return roster[candidate]
-
-                  alias = ALIASES.get(candidate)
-
-                  if alias:
-                      actual = roster.get(
-                          normalize(alias)
-                      )
-
-                      if actual:
-                          return actual
+              if alias:
+                  return roster.get(normalize(alias))
 
               return None
 
-          def find_player(row):
-              # SGT sometimes provides the player
-              # name as an HTML data attribute.
-              for element in [row] + row.find_all(
-                  attrs={"data-player-name": True}
-              ):
-                  name = element.get(
-                      "data-player-name"
-                  )
+          def score_value(text):
+              text = text.strip().upper()
 
-                  if name:
-                      player = match_player(name)
-
-                      if player:
-                          return player
-
-              # Otherwise inspect player links.
-              for link in row.find_all("a"):
-                  name = link.get_text(
-                      " ", strip=True
-                  )
-
-                  player = match_player(name)
-
-                  if player:
-                      return player
-
-              # Finally inspect individual cells.
-              for cell in row.find_all(
-                  ["td", "th"], recursive=False
-              ):
-                  name = cell.get_text(
-                      " ", strip=True
-                  )
-
-                  player = match_player(name)
-
-                  if player:
-                      return player
-
-                  # Remove common scorecard labels.
-                  name = re.sub(
-                      r"\b(SCORECARD|CARD)\b",
-                      "",
-                      name,
-                      flags=re.I
-                  ).strip()
-
-                  player = match_player(name)
-
-                  if player:
-                      return player
-
-              return None
-
-          def parse_relative(value):
-              value = value.strip().upper()
-
-              if value == "E":
+              if text == "E":
                   return 0
 
-              if re.fullmatch(
-                  r"[+-]\d+", value
-              ):
-                  return int(value)
+              if re.fullmatch(r"[+-]\d+", text):
+                  return int(text)
 
               return None
 
-          def parse_leaderboard(html, kind, tid):
+          def parse_leaderboard(html, tid, kind):
               soup = BeautifulSoup(
                   html, "html.parser"
               )
 
-              scores = {}
-              unmatched = set()
-              unfinished = 0
+              finished_rows = soup.select(
+                  "tr.finished-card"
+              )
 
-              rows = soup.find_all("tr")
+              all_named_rows = soup.select(
+                  "tr[data-player-name]"
+              )
 
               print(
                   f"{tid} {kind}: "
-                  f"{len(rows)} HTML rows",
+                  f"{len(finished_rows)} finished, "
+                  f"{len(all_named_rows)} named rows",
                   flush=True
               )
 
-              for row in rows:
-                  cells = row.find_all(
-                      ["td", "th"],
-                      recursive=False
+              scores = {}
+              handicaps = {}
+              unmatched = set()
+
+              for row in finished_rows:
+                  raw_name = row.get(
+                      "data-player-name", ""
+                  ).strip()
+
+                  player = match_player(raw_name)
+
+                  if not player:
+                      unmatched.add(raw_name)
+                      continue
+
+                  total_cell = row.select_one(
+                      "td.total"
                   )
 
-                  if not cells:
-                      continue
-
-                  values = [
-                      cell.get_text(
-                          " ", strip=True
+                  if total_cell is None:
+                      raise RuntimeError(
+                          f"{tid}: missing total "
+                          f"for {raw_name}"
                       )
-                      for cell in cells
-                  ]
 
-                  # SGT marks completed rounds
-                  # with F in the leaderboard.
-                  finished = any(
-                      re.fullmatch(
-                          r"F", value.strip(),
-                          flags=re.I
-                      )
-                      for value in values
+                  total_text = total_cell.get_text(
+                      " ", strip=True
                   )
 
-                  if not finished:
-                      unfinished += 1
-                      continue
+                  score = score_value(total_text)
 
-                  player = find_player(row)
-
-                  if player is None:
-                      text = row.get_text(
-                          " ", strip=True
+                  if score is None:
+                      raise RuntimeError(
+                          f"{tid}: invalid {kind} "
+                          f"total for {raw_name}: "
+                          f"{total_text!r}"
                       )
-
-                      if text:
-                          unmatched.add(
-                              text[:120]
-                          )
-
-                      continue
-
-                  # The rightmost relative score
-                  # is the tournament total.
-                  relative_values = []
-
-                  for value in values:
-                      score = parse_relative(value)
-
-                      if score is not None:
-                          relative_values.append(
-                              score
-                          )
-
-                  if not relative_values:
-                      print(
-                          f"Missing {kind} score "
-                          f"for {player}: {values}",
-                          flush=True
-                      )
-                      continue
-
-                  score = relative_values[-1]
 
                   if player in scores:
                       raise RuntimeError(
-                          f"Duplicate {kind} "
-                          f"player {player} "
-                          f"in tournament {tid}"
+                          f"{tid}: duplicate "
+                          f"player {player}"
                       )
 
                   scores[player] = score
 
+                  # In the net leaderboard, SGT
+                  # displays handicap next to
+                  # the player's name.
+                  if kind == "net":
+                      player_cell = row.select_one(
+                          "td.player"
+                      )
+
+                      if player_cell:
+                          divs = player_cell.select(
+                              "div.three-quarter-font"
+                          )
+
+                          for div in divs:
+                              value = div.get_text(
+                                  " ", strip=True
+                              )
+
+                              if re.fullmatch(
+                                  r"[-+]?\d+(?:\.\d+)?",
+                                  value
+                              ):
+                                  handicaps[player] = (
+                                      float(value)
+                                  )
+                                  break
+
                   print(
-                      f"{kind.upper()}: "
+                      f"{tid} {kind.upper()}: "
                       f"{player} {score:+d}",
                       flush=True
                   )
 
-              for value in sorted(unmatched):
+              for name in sorted(unmatched):
                   print(
-                      f"Unmatched finished "
-                      f"{kind} row: {value}",
+                      f"Unmatched SGT player: "
+                      f"{name}",
                       flush=True
                   )
 
-              print(
-                  f"{tid} {kind}: "
-                  f"{len(scores)} matched "
-                  f"finished players; "
-                  f"{unfinished} other rows",
-                  flush=True
-              )
+              if finished_rows and not scores:
+                  print(
+                      f"WARNING: {tid} {kind} "
+                      "has finished players but "
+                      "none matched the roster",
+                      flush=True
+                  )
 
-              return scores
+              return scores, handicaps
 
-          def fetch_scores(tid, kind):
+          def get_leaderboard(tid, kind):
               suffix = (
                   "/net" if kind == "net" else ""
               )
 
-              path = (
+              html = fetch(
                   f"/sgt-api/leaderboard/"
                   f"{tid}{suffix}"
               )
 
-              html = fetch_sgt(path)
-
-              if html is None:
-                  raise RuntimeError(
-                      f"Cannot retrieve {kind} "
-                      f"leaderboard for {tid}"
-                  )
-
-              if not html.strip():
-                  raise RuntimeError(
-                      f"Empty {kind} "
-                      f"leaderboard for {tid}"
-                  )
-
               return parse_leaderboard(
-                  html, kind, tid
+                  html, tid, kind
               )
 
           def inspect_prizes(tid):
-              # Read prize endpoints without
-              # changing the Supabase database.
-              for kind, suffix in [
+              for name, suffix in [
                   ("CTP", "ctp"),
                   ("LONG DRIVE", "ld")
               ]:
-                  path = (
-                      f"/sgt-api/leaderboard/"
-                      f"{tid}/{suffix}"
-                  )
+                  try:
+                      html = fetch(
+                          f"/sgt-api/leaderboard/"
+                          f"{tid}/{suffix}"
+                      )
 
-                  html = fetch_sgt(path)
+                      soup = BeautifulSoup(
+                          html, "html.parser"
+                      )
 
-                  if html is None:
+                      text = soup.get_text(
+                          " ", strip=True
+                      )
+
                       print(
-                          f"{tid} {kind}: "
-                          "unavailable",
+                          f"{tid} {name}: "
+                          f"{text[:250]}",
                           flush=True
                       )
-                      continue
 
-                  soup = BeautifulSoup(
-                      html, "html.parser"
-                  )
-
-                  text = soup.get_text(
-                      " ", strip=True
-                  )
-
-                  print(
-                      f"{tid} {kind}: "
-                      f"{text[:300]}",
-                      flush=True
-                  )
+                  except Exception as error:
+                      print(
+                          f"{tid} {name} inspection "
+                          f"failed: {error}",
+                          flush=True
+                      )
 
           total_saved = 0
           failures = 0
@@ -456,10 +349,10 @@ jobs:
 
               tournaments = []
 
-              for field in [
+              for field in (
                   "tournament_1_id",
                   "tournament_2_id"
-              ]:
+              ):
                   value = week.get(field)
 
                   if value is not None:
@@ -484,42 +377,53 @@ jobs:
                   flush=True
               )
               print(
-                  f"WEEK {number}: "
-                  f"{tournaments}",
+                  f"WEEK {number}: {tournaments}",
                   flush=True
               )
 
-              # Collect the entire week's scores
-              # before making database changes.
-              week_records = {}
+              records = {}
               week_failed = False
 
               for tid in tournaments:
                   try:
-                      gross = fetch_scores(
+                      gross, _ = get_leaderboard(
                           tid, "gross"
                       )
 
-                      net = fetch_scores(
+                      net, handicaps = get_leaderboard(
                           tid, "net"
                       )
 
+                      gross_names = set(gross)
+                      net_names = set(net)
+
                       completed = (
-                          set(gross) & set(net)
+                          gross_names & net_names
                       )
 
+                      unpaired = (
+                          gross_names ^ net_names
+                      )
+
+                      if unpaired:
+                          raise RuntimeError(
+                              f"{tid}: gross/net "
+                              f"mismatch: "
+                              f"{sorted(unpaired)}"
+                          )
+
                       for player in sorted(completed):
-                          if player in week_records:
+                          if player in records:
                               raise RuntimeError(
-                                  "Player appears in "
-                                  "multiple tournaments "
-                                  f"for Week {number}: "
-                                  f"{player}"
+                                  f"Week {number}: "
+                                  f"duplicate player "
+                                  f"{player} across "
+                                  "tournaments"
                               )
 
-                          week_records[player] = {
-                              "username": player,
+                          record = {
                               "week_number": number,
+                              "username": player,
                               "gross_relative":
                                   gross[player],
                               "net_relative":
@@ -527,29 +431,22 @@ jobs:
                               "status": "played"
                           }
 
-                      only_gross = (
-                          set(gross) - set(net)
-                      )
+                          if player in handicaps:
+                              record["handicap"] = (
+                                  handicaps[player]
+                              )
 
-                      only_net = (
-                          set(net) - set(gross)
-                      )
+                          records[player] = record
 
-                      if only_gross or only_net:
                           print(
-                              f"{tid}: incomplete "
-                              "gross/net pairing; "
-                              f"gross-only={sorted(only_gross)}, "
-                              f"net-only={sorted(only_net)}",
+                              f"READY Week {number}: "
+                              f"{player}, "
+                              f"gross {gross[player]:+d}, "
+                              f"net {net[player]:+d}, "
+                              f"handicap "
+                              f"{handicaps.get(player)}",
                               flush=True
                           )
-
-                      print(
-                          f"{tid}: "
-                          f"{len(completed)} "
-                          "completed score pairs",
-                          flush=True
-                      )
 
                       inspect_prizes(tid)
 
@@ -558,55 +455,67 @@ jobs:
                       failures += 1
 
                       print(
-                          f"Week {number}, "
+                          f"ERROR Week {number}, "
                           f"tournament {tid}: "
-                          f"ERROR: {error}",
+                          f"{error}",
                           flush=True
                       )
 
               if week_failed:
                   print(
                       f"Week {number}: "
-                      "skipping database writes "
-                      "because at least one "
-                      "tournament failed",
+                      "no database writes "
+                      "because a tournament failed",
                       flush=True
                   )
                   continue
 
-              if not week_records:
+              if not records:
                   print(
                       f"Week {number}: "
-                      "no completed matched "
-                      "scores to import",
+                      "no completed matched scores",
                       flush=True
                   )
                   continue
 
-              records = list(
-                  week_records.values()
-              )
+              # Separate records with handicaps
+              # so the upsert uses consistent
+              # columns within each batch.
+              with_handicap = []
+              without_handicap = []
+
+              for record in records.values():
+                  if "handicap" in record:
+                      with_handicap.append(record)
+                  else:
+                      without_handicap.append(record)
 
               try:
-                  saved = supabase(
-                      "sgl_scores?on_conflict="
-                      "username,week_number",
-                      method="POST",
-                      data=records
-                  )
+                  for batch in (
+                      with_handicap,
+                      without_handicap
+                  ):
+                      if not batch:
+                          continue
 
-                  if len(saved) != len(records):
-                      raise RuntimeError(
-                          "Supabase returned "
-                          "an unexpected number "
-                          "of saved records"
+                      saved = db(
+                          "sgl_scores?on_conflict="
+                          "username,week_number",
+                          method="POST",
+                          data=batch
                       )
 
-                  total_saved += len(saved)
+                      if len(saved) != len(batch):
+                          raise RuntimeError(
+                              "Supabase did not "
+                              "confirm every record"
+                          )
+
+                      total_saved += len(saved)
 
                   print(
                       f"Week {number}: "
-                      f"saved {len(saved)} "
+                      f"saved {len(records)} "
                       "completed scores",
                       flush=True
                   )
@@ -616,7 +525,7 @@ jobs:
 
                   print(
                       f"Week {number}: "
-                      f"database error: {error}",
+                      f"Supabase error: {error}",
                       flush=True
                   )
 
@@ -626,25 +535,13 @@ jobs:
           )
 
           print(
-              "IMPORT COMPLETE",
-              flush=True
-          )
-
-          print(
-              f"Score records saved: "
-              f"{total_saved}",
-              flush=True
-          )
-
-          print(
-              f"Failures: {failures}",
+              f"IMPORT COMPLETE: "
+              f"{total_saved} score upserts, "
+              f"{failures} failures",
               flush=True
           )
 
           if failures:
-              raise SystemExit(
-                  "Import completed with errors. "
-                  "Review logs."
-              )
+              raise SystemExit(1)
 
           PY
