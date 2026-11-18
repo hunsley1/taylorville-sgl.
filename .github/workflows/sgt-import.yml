@@ -14,6 +14,97 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Test SGT course par access
+        run: |
+          python3 - <<'PY'
+          import re
+          import urllib.request
+          from html import unescape
+          from urllib.parse import urljoin
+
+          tournament = "83767"
+          url = (
+              "https://simulatorgolftour.com/"
+              f"tournament/{tournament}"
+          )
+
+          try:
+              req = urllib.request.Request(
+                  url,
+                  headers={
+                      "User-Agent": "Mozilla/5.0",
+                      "Accept": "text/html",
+                  },
+              )
+
+              with urllib.request.urlopen(
+                  req, timeout=30
+              ) as response:
+                  html = response.read().decode(
+                      "utf-8", "replace"
+                  )
+
+              print(
+                  "Tournament page accessible",
+                  flush=True
+              )
+
+              matches = re.findall(
+                  r'[^"<> ]*scorecard[^"<> ]*\.(?:jpg|jpeg|png)[^"<> ]*',
+                  html,
+                  re.IGNORECASE,
+              )
+
+              if not matches:
+                  print(
+                      "No scorecard image URL found",
+                      flush=True
+                  )
+              else:
+                  image_url = urljoin(
+                      url, unescape(matches[0])
+                  )
+
+                  print(
+                      "Scorecard URL:", image_url,
+                      flush=True
+                  )
+
+                  try:
+                      image_req = urllib.request.Request(
+                          image_url,
+                          headers={
+                              "User-Agent": "Mozilla/5.0",
+                              "Referer": url,
+                          },
+                      )
+
+                      with urllib.request.urlopen(
+                          image_req, timeout=30
+                      ) as response:
+                          data = response.read()
+
+                      print(
+                          "Scorecard downloaded:",
+                          len(data), "bytes",
+                          flush=True
+                      )
+
+                  except Exception as error:
+                      print(
+                          "Scorecard access failed:",
+                          error,
+                          flush=True
+                      )
+
+          except Exception as error:
+              print(
+                  "Tournament access failed:",
+                  error,
+                  flush=True
+              )
+          PY
+
       - name: Import completed SGT scores
         env:
           SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
