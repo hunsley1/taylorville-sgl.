@@ -1,5 +1,5 @@
 
-name: Test SGT Par 3 Data
+name: Test SGT Leaderboard HTML
 
 on:
   workflow_dispatch:
@@ -8,104 +8,67 @@ permissions:
   contents: read
 
 jobs:
-  test-par3:
+  inspect-leaderboard:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Test SGT leaderboard API
+      - name: Install parser
+        run: |
+          python3 -m pip install --quiet beautifulsoup4
+
+      - name: Inspect completed player rows
         run: |
           python3 - <<'PY'
           import urllib.request
-          import urllib.error
-          import re
-          from html import unescape
-          from html.parser import HTMLParser
+          from bs4 import BeautifulSoup
 
-          BASE = "https://simulatorgolftour.com"
-          TID = "83767"
+          BASE = (
+              "https://simulatorgolftour.com"
+              "/sgt-api/leaderboard/83767"
+          )
 
-          class Parser(HTMLParser):
-              def __init__(self):
-                  super().__init__()
-                  self.text = []
-                  self.shots = []
-
-              def handle_starttag(self, tag, attrs):
-                  attrs = dict(attrs)
-                  if "data-shots" in attrs:
-                      self.shots.append(attrs["data-shots"])
-
-              def handle_data(self, data):
-                  value = " ".join(data.split())
-                  if value:
-                      self.text.append(value)
-
-          endpoints = {
-              "GROSS": f"/sgt-api/leaderboard/{TID}",
-              "NET": f"/sgt-api/leaderboard/{TID}/net",
-              "CLOSEST TO PIN": f"/sgt-api/leaderboard/{TID}/ctp",
-              "LONG DRIVE": f"/sgt-api/leaderboard/{TID}/ld"
-          }
-
-          for name, path in endpoints.items():
-              print("\n" + "=" * 60)
-              print("TESTING:", name)
-              url = BASE + path
-              print("URL:", url)
-
+          for label, url in [
+              ("GROSS", BASE),
+              ("NET", BASE + "/net")
+          ]:
               request = urllib.request.Request(
                   url,
                   headers={
                       "User-Agent": "Mozilla/5.0",
                       "Accept": "text/html,*/*",
-                      "Referer": BASE + f"/tournament/{TID}"
+                      "Referer": (
+                          "https://simulatorgolftour.com/"
+                      )
                   }
               )
 
-              try:
-                  with urllib.request.urlopen(
-                      request, timeout=20
-                  ) as response:
-                      html = response.read().decode(
-                          "utf-8", "replace"
-                      )
-                      print("HTTP:", response.status)
-                      print("SIZE:", len(html))
+              with urllib.request.urlopen(
+                  request, timeout=30
+              ) as response:
+                  html = response.read().decode(
+                      "utf-8", "replace"
+                  )
 
-                  parser = Parser()
-                  parser.feed(html)
+              soup = BeautifulSoup(
+                  html, "html.parser"
+              )
 
-                  print("\nVISIBLE TEXT:")
-                  for line in parser.text[:80]:
-                      print(line[:200])
+              print("\n" + "=" * 60)
+              print(label + " LEADERBOARD")
+              print("=" * 60)
 
-                  print("\nSHOT DATA:")
-                  for shot in parser.shots[:5]:
-                      print(unescape(shot)[:1500])
+              rows = soup.find_all("tr")
 
-                  print("\nCHECKS:")
-                  for keyword in [
-                      "MASON",
-                      "MikeFNHoncho47",
-                      "data-shots",
-                      "leader-row"
-                  ]:
-                      found = keyword.lower() in html.lower()
-                      print(
-                          keyword + ":",
-                          "FOUND" if found else "NOT FOUND"
-                      )
+              for index, row in enumerate(
+                  rows[:5]
+              ):
+                  print(
+                      f"\nROW {index}:",
+                      flush=True
+                  )
+                  print(
+                      row.prettify()[:6000],
+                      flush=True
+                  )
 
-                  print("\nRESULT: CONNECTED")
-
-              except urllib.error.HTTPError as error:
-                  print("HTTP ERROR:", error.code)
-                  print("RESULT: BLOCKED OR UNAVAILABLE")
-
-              except Exception as error:
-                  print("ERROR:", str(error))
-                  print("RESULT: FAILED")
-
-          print("\n" + "=" * 60)
-          print("ALL TESTS COMPLETE")
           PY
