@@ -12,116 +12,100 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Find SGT API base and test CTP
+      - name: Test SGT leaderboard API
         run: |
           python3 - <<'PY'
-          import re
           import urllib.request
+          import urllib.error
+          import re
           from html import unescape
+          from html.parser import HTMLParser
 
           BASE = "https://simulatorgolftour.com"
           TID = "83767"
 
-          def fetch(url):
-              try:
-                  req = urllib.request.Request(
-                      url,
-                      headers={
-                          "User-Agent": "Mozilla/5.0",
-                          "Accept": "text/html,*/*",
-                          "Referer": BASE + "/"
-                      }
-                  )
-                  with urllib.request.urlopen(
-                      req, timeout=15
-                  ) as response:
-                      body = response.read().decode(
-                          "utf-8", "replace"
-                      )
-                      print(
-                          "HTTP:", response.status,
-                          "SIZE:", len(body)
-                      )
-                      return body
-              except Exception as e:
-                  print("ERROR:", str(e))
-                  return ""
+          class Parser(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.text = []
+                  self.shots = []
 
-          print("STEP 1: Find APIBASE")
-          html = fetch(BASE + "/tournament/" + TID)
+              def handle_starttag(self, tag, attrs):
+                  attrs = dict(attrs)
+                  if "data-shots" in attrs:
+                      self.shots.append(attrs["data-shots"])
 
-          matches = re.findall(
-              r'.{0,150}APIBASE.{0,250}',
-              html,
-              flags=re.I
-          )
-
-          for match in matches[:10]:
-              print(unescape(match))
-
-          base_match = re.search(
-              r'APIBASE\s*=\s*["\']([^"\']+)["\']',
-              html
-          )
-
-          if base_match:
-              api = base_match.group(1)
-          else:
-              print(
-                  "APIBASE not directly defined. "
-                  "Checking common.js."
-              )
-              common = fetch(
-                  "https://sgt-static.b-cdn.net/"
-                  "public/assets/pageCommon/"
-                  "common.js?v=2.0.21"
-              )
-              for match in re.findall(
-                  r'.{0,100}APIBASE.{0,200}',
-                  common
-              )[:10]:
-                  print(match)
-              api = ""
-
-          if not api:
-              print("API base still needs identification.")
-              raise SystemExit(0)
-
-          from urllib.parse import urljoin
-
-          api = urljoin(BASE, api)
-          if not api.endswith("/"):
-              api += "/"
-
-          print("API BASE:", api)
-
-          print("\nSTEP 2: Test endpoints")
+              def handle_data(self, data):
+                  value = " ".join(data.split())
+                  if value:
+                      self.text.append(value)
 
           endpoints = {
-              "CTP": f"leaderboard/{TID}/ctp",
-              "GROSS": f"leaderboard/{TID}",
-              "NET": f"leaderboard/{TID}/net",
-              "LONG DRIVE": f"leaderboard/{TID}/ld"
+              "GROSS": f"/sgt-api/leaderboard/{TID}",
+              "NET": f"/sgt-api/leaderboard/{TID}/net",
+              "CLOSEST TO PIN": f"/sgt-api/leaderboard/{TID}/ctp",
+              "LONG DRIVE": f"/sgt-api/leaderboard/{TID}/ld"
           }
 
           for name, path in endpoints.items():
-              url = api + path
-              print("\n" + "=" * 45)
-              print(name, url)
-              result = fetch(url)
-              print("PREVIEW:")
-              print(result[:2500])
+              print("\n" + "=" * 60)
+              print("TESTING:", name)
+              url = BASE + path
+              print("URL:", url)
 
-              if result:
+              request = urllib.request.Request(
+                  url,
+                  headers={
+                      "User-Agent": "Mozilla/5.0",
+                      "Accept": "text/html,*/*",
+                      "Referer": BASE + f"/tournament/{TID}"
+                  }
+              )
+
+              try:
+                  with urllib.request.urlopen(
+                      request, timeout=20
+                  ) as response:
+                      html = response.read().decode(
+                          "utf-8", "replace"
+                      )
+                      print("HTTP:", response.status)
+                      print("SIZE:", len(html))
+
+                  parser = Parser()
+                  parser.feed(html)
+
+                  print("\nVISIBLE TEXT:")
+                  for line in parser.text[:80]:
+                      print(line[:200])
+
+                  print("\nSHOT DATA:")
+                  for shot in parser.shots[:5]:
+                      print(unescape(shot)[:1500])
+
+                  print("\nCHECKS:")
                   for keyword in [
-                      "MASON", "shot-plot",
-                      "data-shots", "leader-row"
+                      "MASON",
+                      "MikeFNHoncho47",
+                      "data-shots",
+                      "leader-row"
                   ]:
+                      found = keyword.lower() in html.lower()
                       print(
-                          keyword,
-                          "FOUND" if keyword.lower()
-                          in result.lower() else "not found"
+                          keyword + ":",
+                          "FOUND" if found else "NOT FOUND"
                       )
 
-          print("\nTEST COMPLETE")
+                  print("\nRESULT: CONNECTED")
+
+              except urllib.error.HTTPError as error:
+                  print("HTTP ERROR:", error.code)
+                  print("RESULT: BLOCKED OR UNAVAILABLE")
+
+              except Exception as error:
+                  print("ERROR:", str(error))
+                  print("RESULT: FAILED")
+
+          print("\n" + "=" * 60)
+          print("ALL TESTS COMPLETE")
           PY
