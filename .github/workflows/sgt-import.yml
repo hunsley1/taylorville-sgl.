@@ -12,587 +12,258 @@ permissions:
 jobs:
   import-scores:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Test SGT course par access
+      - name: Install scorecard reader
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq tesseract-ocr
+          python3 -m pip install --quiet pillow pytesseract
+
+      - name: Import SGT scores and detect course par
+        env:
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: https://xgjziyopzeeneccfaszb.supabase.co
         run: |
           python3 - <<'PY'
+          import io
+          import json
+          import os
           import re
           import time
-          import urllib.request
           import urllib.error
+          import urllib.parse
+          import urllib.request
           from html import unescape
           from html.parser import HTMLParser
-          from urllib.parse import urljoin
 
-          tournament = "83767"
-          base = "https://simulatorgolftour.com"
+          from PIL import Image, ImageEnhance, ImageOps
+          import pytesseract
 
-          urls = [
-              f"{base}/tournament/{tournament}",
-              (
-                  f"{base}/embed/tournament/"
-                  f"{tournament}/standings/gross"
-                  "?theme=dark"
-              ),
-          ]
+          BASE = os.environ['SUPABASE_URL'].rstrip('/')
+          KEY = os.environ['SUPABASE_KEY']
+          SGT = 'https://simulatorgolftour.com'
+          ALIASES = {'mikefnhoncho47': 'MIKEFNHONCH047'}
 
-          class Inspector(HTMLParser):
-              def __init__(self):
-                  super().__init__()
-                  self.images = []
-                  self.links = []
-                  self.text = []
-
-              def handle_starttag(self, tag, attrs):
-                  attrs = dict(attrs)
-
-                  if tag == "img" and attrs.get("src"):
-                      self.images.append(attrs["src"])
-
-                  if tag == "a" and attrs.get("href"):
-                      self.links.append(attrs["href"])
-
-              def handle_data(self, data):
-                  value = " ".join(data.split())
-                  if value:
-                      self.text.append(value)
+          def api(path, method='GET', data=None):
+              headers = {
+                  'apikey': KEY,
+                  'Authorization': f'Bearer {KEY}',
+                  'Accept': 'application/json',
+              }
+              body = None
+              if data is not None:
+                  body = json.dumps(data).encode('utf-8')
+                  headers['Content-Type'] = 'application/json'
+                  headers['Prefer'] = 'resolution=merge-duplicates,return=representation'
+              request = urllib.request.Request(
+                  BASE + '/rest/v1/' + path, data=body,
+                  headers=headers, method=method,
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  raw = response.read()
+                  return json.loads(raw) if raw else []
 
           def fetch(url, binary=False):
               for attempt in range(1, 4):
                   try:
-                      print(
-                          f"Attempt {attempt}/3: {url}",
-                          flush=True
-                      )
-
-                      req = urllib.request.Request(
-                          url,
-                          headers={
-                              "User-Agent": "Mozilla/5.0",
-                              "Accept": (
-                                  "text/html,image/avif,"
-                                  "image/webp,image/*,*/*"
-                              ),
-                              "Referer": (
-                                  f"{base}/tournament/"
-                                  f"{tournament}"
-                              ),
-                          },
-                      )
-
-                      with urllib.request.urlopen(
-                          req, timeout=30
-                      ) as response:
-                          payload = response.read()
-                          content_type = (
-                              response.headers.get(
-                                  "Content-Type", ""
-                              )
-                          )
-
-                      print(
-                          f"SUCCESS: {len(payload)} bytes; "
-                          f"{content_type}",
-                          flush=True
-                      )
-
-                      if binary:
-                          return payload
-
-                      return payload.decode(
-                          "utf-8", "replace"
-                      )
-
-                  except (
-                      urllib.error.URLError,
-                      TimeoutError,
-                      ConnectionError,
-                  ) as error:
-                      print(
-                          f"Attempt {attempt} failed: "
-                          f"{type(error).__name__}: "
-                          f"{error}",
-                          flush=True
-                      )
-
+                      request = urllib.request.Request(url, headers={
+                          'User-Agent': 'Mozilla/5.0',
+                          'Accept': '*/*',
+                          'Referer': SGT + '/',
+                      })
+                      with urllib.request.urlopen(request, timeout=30) as response:
+                          data = response.read()
+                      return data if binary else data.decode('utf-8', 'replace')
+                  except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
+                      print(f'Request {attempt}/3 failed for {url}: {error}', flush=True)
                       if attempt < 3:
                           time.sleep(5 * attempt)
-
               return None
 
-          for url in urls:
-              print(
-                  f"\nInspecting {url}",
-                  flush=True
-              )
-
-              html = fetch(url)
-
-              if html is None:
-                  print(
-                      "UNAVAILABLE: moving to next source",
-                      flush=True
-                  )
-                  continue
-
-              inspector = Inspector()
-              inspector.feed(html)
-
-              visible = " ".join(inspector.text)
-
-              patterns = [
-                  (
-                      r"\b(?:course\s+)?par\s*"
-                      r"[:=]?\s*(6[0-9]|7[0-5])\b"
-                  ),
-                  (
-                      r'"(?:course_par|coursePar|'
-                      r'totalPar)"\s*:\s*'
-                      r'(6[0-9]|7[0-5])\b'
-                  ),
-              ]
-
-              matches = []
-
-              for source in (visible, html):
-                  for pattern in patterns:
-                      matches += re.findall(
-                          pattern,
-                          source,
-                          re.IGNORECASE
-                      )
-
-              print(
-                  "Possible par values (NOT VERIFIED):",
-                  sorted(set(matches)),
-                  flush=True
-              )
-
-              related = [
-                  urljoin(url, unescape(link))
-                  for link in (
-                      inspector.images + inspector.links
-                  )
-                  if (
-                      "scorecard" in link.lower()
-                      or "course" in link.lower()
-                  )
-              ]
-
-              related = list(
-                  dict.fromkeys(related)
-              )[:10]
-
-              print(
-                  "Course/scorecard links found:",
-                  len(related),
-                  flush=True
-              )
-
-              for link in related:
-                  print(
-                      "Candidate:", link,
-                      flush=True
-                  )
-
-              images = [
-                  link
-                  for link in related
-                  if re.search(
-                      r"\.(?:png|jpe?g|webp)(?:[?#]|$)",
-                      link,
-                      re.IGNORECASE
-                  )
-              ]
-
-              if images:
-                  image_data = fetch(
-                      images[0],
-                      binary=True
-                  )
-
-                  print(
-                      "Scorecard image accessible:",
-                      image_data is not None,
-                      flush=True
-                  )
-
-          print(
-              "Diagnostic complete. "
-              "No Supabase records changed.",
-              flush=True
-          )
-          PY
-
-      - name: Import completed SGT scores
-        env:
-          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SUPABASE_URL: https://xgjziyopzeeneccfaszb.supabase.co
-
-        run: |
-          python3 - <<'PY'
-          import os
-          import re
-          import json
-          import time
-          import urllib.request
-          import urllib.error
-          from html import unescape
-          from html.parser import HTMLParser
-
-          TOURNAMENTS = {
-              4: ["83767"],
-          }
-
-          SGT_ALIASES = {
-              "mikefnhoncho47": "MIKEFNHONCH047",
-          }
-
-          BASE = os.environ["SUPABASE_URL"].rstrip("/")
-          KEY = os.environ.get("SUPABASE_KEY", "")
-
-          if not KEY:
-              raise RuntimeError(
-                  "Missing SUPABASE_SERVICE_ROLE_KEY"
-              )
-
-          def request_json(path, method="GET", data=None):
-              headers = {
-                  "apikey": KEY,
-                  "Authorization": f"Bearer {KEY}",
-                  "Accept": "application/json",
-              }
-
-              body = None
-
-              if data is not None:
-                  body = json.dumps(data).encode("utf-8")
-                  headers["Content-Type"] = "application/json"
-                  headers["Prefer"] = (
-                      "resolution=merge-duplicates,"
-                      "return=representation"
-                  )
-
-              req = urllib.request.Request(
-                  BASE + "/rest/v1/" + path,
-                  data=body,
-                  headers=headers,
-                  method=method,
-              )
-
-              with urllib.request.urlopen(
-                  req, timeout=30
-              ) as response:
-                  content = response.read()
-                  return (
-                      json.loads(content)
-                      if content else []
-                  )
-
-          class Reader(HTMLParser):
+          class PageParser(HTMLParser):
               def __init__(self):
                   super().__init__()
+                  self.images = []
                   self.rows = []
                   self.row = None
                   self.cell = None
 
               def handle_starttag(self, tag, attrs):
-                  if tag == "tr":
+                  attrs = dict(attrs)
+                  if tag in ('img', 'a'):
+                      for key in ('src', 'href', 'data-src'):
+                          value = attrs.get(key, '')
+                          if 'scorecard' in value.lower() and re.search(r'\.(?:png|jpe?g|webp)(?:[?#]|$)', value, re.I):
+                              self.images.append(value)
+                  if tag == 'tr':
                       self.row = []
-                  elif tag in ("td", "th"):
-                      if self.row is not None:
-                          self.cell = []
+                  elif tag in ('td', 'th') and self.row is not None:
+                      self.cell = []
 
               def handle_data(self, data):
                   if self.cell is not None:
                       self.cell.append(data)
 
               def handle_endtag(self, tag):
-                  if tag in ("td", "th"):
-                      if self.cell is not None:
-                          self.row.append(
-                              unescape(
-                                  " ".join(
-                                      "".join(self.cell).split()
-                                  )
-                              )
-                          )
-                          self.cell = None
-
-                  elif tag == "tr":
+                  if tag in ('td', 'th') and self.cell is not None:
+                      self.row.append(unescape(' '.join(''.join(self.cell).split())))
+                      self.cell = None
+                  elif tag == 'tr':
                       if self.row:
                           self.rows.append(self.row)
                       self.row = None
 
-          def get_scores(tournament, kind):
-              url = (
-                  "https://simulatorgolftour.com/"
-                  f"embed/tournament/{tournament}/"
-                  f"standings/{kind}?theme=dark"
-              )
-
-              for attempt in range(1, 4):
+          def get_scorecard(tournament):
+              page_url = f'{SGT}/tournament/{tournament}'
+              html = fetch(page_url)
+              if html is None:
+                  return None
+              parser = PageParser()
+              parser.feed(html)
+              for link in dict.fromkeys(parser.images):
+                  url = urllib.parse.urljoin(page_url, unescape(link))
+                  data = fetch(url, binary=True)
+                  if data is None:
+                      continue
                   try:
-                      print(
-                          f"SGT {kind} request "
-                          f"attempt {attempt}/3: {url}",
-                          flush=True
-                      )
-
-                      req = urllib.request.Request(
-                          url,
-                          headers={
-                              "User-Agent": "Mozilla/5.0",
-                              "Accept": "text/html",
-                          },
-                      )
-
-                      with urllib.request.urlopen(
-                          req, timeout=30
-                      ) as response:
-                          html = response.read().decode(
-                              "utf-8",
-                              errors="replace"
-                          )
-
-                      parser = Reader()
-                      parser.feed(html)
-
-                      print(
-                          f"SGT {kind}: "
-                          f"{len(parser.rows)} table rows",
-                          flush=True
-                      )
-
-                      return parser.rows[1:]
-
-                  except (
-                      urllib.error.URLError,
-                      TimeoutError,
-                      ConnectionError,
-                  ) as error:
-                      print(
-                          f"SGT {kind} attempt "
-                          f"{attempt}/3 failed: "
-                          f"{type(error).__name__}: "
-                          f"{error}",
-                          flush=True
-                      )
-
-                      if attempt < 3:
-                          time.sleep(5 * attempt)
-
-              print(
-                  f"ERROR: SGT {kind} unavailable "
-                  f"after 3 attempts.",
-                  flush=True
-              )
-
+                      image = Image.open(io.BytesIO(data))
+                      image.load()
+                      print(f'Scorecard downloaded for {tournament}: {image.size}', flush=True)
+                      return image.convert('RGB')
+                  except Exception as error:
+                      print(f'Invalid scorecard image: {error}', flush=True)
               return None
 
-          def relative_score(value):
-              match = re.search(
-                  r"(?<!\d)([+-]\d+|E)(?!\d)",
-                  value.upper(),
-              )
+          def detect_par(image):
+              width, height = image.size
+              regions = [
+                  image,
+                  image.crop((0, int(height * .65), int(width * .55), height)),
+              ]
+              candidates = []
+              for region in regions:
+                  gray = ImageOps.grayscale(region)
+                  gray = ImageEnhance.Contrast(gray).enhance(2)
+                  gray = gray.resize((gray.width * 3, gray.height * 3))
+                  result = pytesseract.image_to_string(gray, config='--psm 6')
+                  found = []
+                  for line in result.upper().splitlines():
+                      match = re.search(r'\bTOTAL\b\s+(6\d|7[0-5])\b', line)
+                      if match:
+                          found.append(int(match.group(1)))
+                  candidates.append(found)
+              print(f'OCR par candidates: {candidates}', flush=True)
+              if all(len(c) == 1 for c in candidates) and candidates[0] == candidates[1]:
+                  return candidates[0][0]
+              return None
 
+          def get_rows(tournament, kind):
+              url = f'{SGT}/embed/tournament/{tournament}/standings/{kind}?theme=dark'
+              html = fetch(url)
+              if html is None:
+                  return None
+              parser = PageParser()
+              parser.feed(html)
+              print(f'SGT {kind} tournament {tournament}: {len(parser.rows)} rows', flush=True)
+              return parser.rows[1:]
+
+          def relative_score(value):
+              match = re.search(r'(?<!\d)([+-]\d+|E)(?!\d)', value.upper())
               if not match:
                   return None
+              return 0 if match.group(1) == 'E' else int(match.group(1))
 
-              result = match.group(1)
-
-              return (
-                  0 if result == "E"
-                  else int(result)
-              )
-
-          def finished(row):
-              return (
-                  len(row) >= 4
-                  and bool(
-                      re.search(r"\bF\b", row[2])
-                  )
-              )
-
-          players = request_json(
-              "sgl_players?select=username"
-          )
-
-          roster = {
-              p["username"].strip().casefold():
-              p["username"]
-              for p in players
-          }
-
-          print(
-              f"Loaded {len(roster)} league players",
-              flush=True
-          )
+          players = api('sgl_players?select=username')
+          roster = {p['username'].strip().casefold(): p['username'] for p in players}
+          weeks = api('sgl_weeks?select=week_number,tournament_1_id,tournament_2_id,course_par&order=week_number.asc')
+          print(f'Loaded {len(roster)} players and {len(weeks)} weeks', flush=True)
 
           def match_player(raw):
-              name = " ".join(
-                  raw.split()
-              ).casefold()
-
+              name = ' '.join(raw.split()).casefold()
               candidates = [name]
-
-              handicap = re.fullmatch(
-                  r"(.+?)\s+[-+]?\d+",
-                  name
-              )
-
+              handicap = re.fullmatch(r'(.+?)\s+[-+]?\d+', name)
               if handicap:
-                  candidates.append(
-                      handicap.group(1)
-                  )
-
+                  candidates.append(handicap.group(1))
               for candidate in candidates:
-                  if candidate in roster:
-                      return roster[candidate]
-
-                  alias = SGT_ALIASES.get(
-                      candidate
-                  )
-
-                  if alias:
-                      actual = roster.get(
-                          alias.strip().casefold()
-                      )
-
-                      if actual:
-                          return actual
-
-                      print(
-                          "WARNING: Alias target "
-                          "missing from roster:",
-                          alias
-                      )
-
+                  actual = roster.get(candidate)
+                  if actual:
+                      return actual
+                  alias = ALIASES.get(candidate)
+                  if alias and alias.casefold() in roster:
+                      return roster[alias.casefold()]
               return None
 
           def collect(rows, kind):
               scores = {}
-
               for row in rows:
-                  if (
-                      len(row) < 4
-                      or not finished(row)
-                  ):
+                  if len(row) < 4 or not re.search(r'\bF\b', row[2]):
                       continue
-
-                  player = match_player(
-                      row[1]
-                  )
-
-                  score = relative_score(
-                      row[3]
-                  )
-
+                  player = match_player(row[1])
+                  score = relative_score(row[3])
                   if player is None:
-                      print(
-                          f"Unmatched {kind} player:",
-                          repr(row[1])
-                      )
-                      continue
-
-                  if score is None:
-                      print(
-                          f"Unreadable {kind} score:",
-                          player,
-                          repr(row[3])
-                      )
-                      continue
-
-                  scores[player] = score
-
+                      print(f'Unmatched {kind} player: {row[1]!r}', flush=True)
+                  elif score is None:
+                      print(f'Unreadable {kind} score: {player}: {row[3]!r}', flush=True)
+                  else:
+                      scores[player] = score
               return scores
 
           total = 0
-          failed_requests = 0
+          failures = 0
+          for week in weeks:
+              number = week['week_number']
+              tournaments = list(dict.fromkeys(
+                  str(week[field]).strip()
+                  for field in ('tournament_1_id', 'tournament_2_id')
+                  if week.get(field) is not None and str(week[field]).strip()
+              ))
+              if not tournaments:
+                  print(f'Week {number}: no tournament IDs, skipping', flush=True)
+                  continue
+              print(f'Week {number}: tournaments {tournaments}', flush=True)
 
-          for week, tournament_ids in TOURNAMENTS.items():
-              for tournament in tournament_ids:
-                  print(
-                      f"Checking Week {week}, "
-                      f"tournament {tournament}",
-                      flush=True
-                  )
+              # Both league tournaments should use the same course.
+              # Preserve existing par when detection is uncertain.
+              try:
+                  image = get_scorecard(tournaments[0])
+                  par = detect_par(image) if image is not None else None
+                  if par is None:
+                      print(f'Week {number}: par unverified; existing par preserved', flush=True)
+                  elif par == week.get('course_par'):
+                      print(f'Week {number}: confirmed existing par {par}', flush=True)
+                  else:
+                      path = 'sgl_weeks?' + urllib.parse.urlencode({'week_number': f'eq.{number}'})
+                      updated = api(path, method='PATCH', data={'course_par': par})
+                      if len(updated) != 1 or updated[0].get('course_par') != par:
+                          raise RuntimeError('Par update was not confirmed')
+                      print(f'Week {number}: course par updated to {par}', flush=True)
+              except Exception as error:
+                  print(f'Week {number}: par check failed ({error}); scores will continue', flush=True)
 
-                  gross_rows = get_scores(
-                      tournament, "gross"
-                  )
-
-                  net_rows = get_scores(
-                      tournament, "net"
-                  )
-
-                  if (
-                      gross_rows is None
-                      or net_rows is None
-                  ):
-                      failed_requests += 1
-
-                      print(
-                          "Skipping tournament import "
-                          "because SGT data is unavailable. "
-                          "Existing scores remain unchanged.",
-                          flush=True
-                      )
+              for tournament in tournaments:
+                  gross_rows = get_rows(tournament, 'gross')
+                  net_rows = get_rows(tournament, 'net')
+                  if gross_rows is None or net_rows is None:
+                      failures += 1
+                      print(f'Week {number}, tournament {tournament}: unavailable; existing scores preserved', flush=True)
                       continue
-
-                  gross = collect(
-                      gross_rows, "gross"
-                  )
-
-                  net = collect(
-                      net_rows, "net"
-                  )
-
-                  matched = set(gross) & set(net)
-
-                  for player in sorted(matched):
+                  gross = collect(gross_rows, 'gross')
+                  net = collect(net_rows, 'net')
+                  matched = sorted(set(gross) & set(net))
+                  for player in matched:
                       record = {
-                          "week_number": week,
-                          "username": player,
-                          "gross_relative": gross[player],
-                          "net_relative": net[player],
-                          "status": "played",
+                          'week_number': number,
+                          'username': player,
+                          'gross_relative': gross[player],
+                          'net_relative': net[player],
+                          'status': 'played',
                       }
-
-                      request_json(
-                          "sgl_scores?"
-                          "on_conflict=username,week_number",
-                          method="POST",
-                          data=[record],
-                      )
-
+                      api('sgl_scores?on_conflict=username,week_number', method='POST', data=[record])
                       total += 1
+                      print(f'Saved Week {number}: {player}, gross {gross[player]:+d}, net {net[player]:+d}', flush=True)
+                  print(f'Week {number}, tournament {tournament}: {len(matched)} matched players', flush=True)
 
-                      print(
-                          f"Saved Week {week}: "
-                          f"{player}, "
-                          f"gross {gross[player]:+d}, "
-                          f"net {net[player]:+d}",
-                          flush=True
-                      )
-
-                  print(
-                      "Matched completed players:",
-                      len(matched),
-                      flush=True
-                  )
-
-          print(
-              f"Import complete: {total} scores; "
-              f"{failed_requests} tournament "
-              f"requests failed.",
-              flush=True
-          )
-
-          if failed_requests:
-              raise SystemExit(
-                  "SGT connection failed. "
-                  "No existing scores were deleted."
-              )
+          print(f'Import complete: {total} score upserts, {failures} unavailable tournaments', flush=True)
+          if failures:
+              raise SystemExit('Some SGT requests failed. Existing scores were not deleted.')
           PY
