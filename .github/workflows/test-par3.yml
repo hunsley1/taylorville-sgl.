@@ -13,219 +13,135 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: Inspect SGT bullseye data sources
+      - name: Inspect SGT tournament JavaScript
         run: |
           python3 - <<'PY'
-          import concurrent.futures
           import re
-          import urllib.error
           import urllib.request
-          from html.parser import HTMLParser
-          from urllib.parse import urljoin
+          import urllib.error
 
-          SGT = "https://simulatorgolftour.com"
-          TOURNAMENT = "83767"
+          BASE = "https://simulatorgolftour.com"
+          CDN = "https://sgt-static.b-cdn.net"
 
-          class Inspector(HTMLParser):
-              def __init__(self):
-                  super().__init__()
-                  self.links = []
-                  self.text = []
+          sources = {
+              "Tournament JavaScript":
+                  CDN + "/public/tournament/page.js?v=2.0.21",
+              "Common JavaScript":
+                  CDN + "/public/assets/pageCommon/common.js?v=2.0.21",
+              "Tournament page":
+                  BASE + "/tournament/83767",
+          }
 
-              def handle_starttag(self, tag, attrs):
-                  attrs = dict(attrs)
-                  if tag in ("a", "script", "iframe", "link"):
-                      url = attrs.get("href") or attrs.get("src")
-                      if url:
-                          self.links.append(url)
+          keywords = [
+              "bullseye",
+              "closest",
+              "proximity",
+              "cttp",
+              "par3",
+              "par_3",
+              "leaderboard",
+              "ajax",
+              "fetch(",
+          ]
 
-              def handle_data(self, data):
-                  value = " ".join(data.split())
-                  if value:
-                      self.text.append(value)
+          def inspect(name, url):
+              print("\n" + "=" * 60)
+              print("SOURCE:", name)
+              print("URL:", url)
 
-          def fetch(item):
-              label, path = item
-              url = urljoin(SGT + "/", path)
-
-              request = urllib.request.Request(
+              req = urllib.request.Request(
                   url,
                   headers={
-                      "User-Agent": (
+                      "User-Agent":
                           "Mozilla/5.0 (X11; Linux x86_64) "
                           "AppleWebKit/537.36 "
-                          "Chrome/131.0.0.0 Safari/537.36"
-                      ),
-                      "Accept": "text/html,application/json,*/*",
-                      "Referer": SGT + "/",
-                  },
+                          "(KHTML, like Gecko) "
+                          "Chrome/131.0.0.0 Safari/537.36",
+                      "Accept": "*/*",
+                      "Referer":
+                          BASE + "/tournament/83767",
+                  }
               )
 
               try:
                   with urllib.request.urlopen(
-                      request, timeout=12
+                      req, timeout=20
                   ) as response:
-                      raw = response.read(1500000)
-                      html = raw.decode("utf-8", "replace")
-                      return {
-                          "label": label,
-                          "url": url,
-                          "status": response.status,
-                          "type": response.headers.get(
-                              "Content-Type", ""
-                          ),
-                          "html": html,
-                          "error": None,
-                      }
+                      content = response.read().decode(
+                          "utf-8", "replace"
+                      )
+                      print("HTTP:", response.status)
+                      print("SIZE:", len(content))
               except Exception as error:
-                  return {
-                      "label": label,
-                      "url": url,
-                      "status": None,
-                      "type": "",
-                      "html": "",
-                      "error": str(error),
-                  }
+                  print("REQUEST FAILED:", repr(error))
+                  return
 
-          sources = [
-              (
-                  "Main tournament page",
-                  f"/tournament/{TOURNAMENT}",
-              ),
-              (
-                  "Embedded gross leaderboard",
-                  f"/embed/tournament/{TOURNAMENT}"
-                  "/standings/gross?theme=dark",
-              ),
-              (
-                  "Embedded net leaderboard",
-                  f"/embed/tournament/{TOURNAMENT}"
-                  "/standings/net?theme=dark",
-              ),
-              (
-                  "SGT homepage",
-                  "/",
-              ),
-          ]
+              print("\nKEYWORD MATCHES:")
 
-          print("TESTING SGT CONNECTIONS", flush=True)
-          print("=" * 60, flush=True)
-
-          with concurrent.futures.ThreadPoolExecutor(
-              max_workers=4
-          ) as executor:
-              results = list(executor.map(fetch, sources))
-
-          keywords = (
-              "bullseye",
-              "closest",
-              "proximity",
-              "par3",
-              "par_3",
-              "cttp",
-              "nearest",
-          )
-
-          working = []
-
-          for result in results:
-              print("\n" + "=" * 60)
-              print("SOURCE:", result["label"])
-              print("URL:", result["url"])
-
-              if result["error"]:
-                  print("RESULT: FAILED")
-                  print("ERROR:", result["error"])
-                  continue
-
-              print("RESULT: CONNECTED")
-              print("HTTP:", result["status"])
-              print("CONTENT TYPE:", result["type"])
-              print("SIZE:", len(result["html"]))
-
-              working.append(result)
-
-              html = result["html"]
-              parser = Inspector()
-              parser.feed(html)
-
-              print("\nBULLSEYE KEYWORD MATCHES:")
-              count = 0
-              for keyword in keywords:
-                  matches = list(
-                      re.finditer(
-                          re.escape(keyword),
-                          html,
-                          re.IGNORECASE,
-                      )
-                  )
-                  if matches:
-                      print(
-                          f"{keyword}: {len(matches)} occurrences"
-                      )
-                      for match in matches[:3]:
-                          start = max(0, match.start() - 100)
-                          end = min(
-                              len(html), match.end() + 180
-                          )
-                          snippet = " ".join(
-                              html[start:end].split()
-                          )
-                          print(" ", snippet[:350])
-                      count += len(matches)
-
-              if not count:
-                  print("No matching keywords in HTML.")
-
-              print("\nRELEVANT LINKS:")
-              relevant = [
-                  link for link in parser.links
-                  if any(
-                      keyword in link.lower()
-                      for keyword in (
-                          "api", "tournament", "bullseye",
-                          "closest", "stat", ".js",
-                      )
-                  )
-              ]
-              for link in relevant[:25]:
-                  print(link[:250])
-
-              print("\nPAGE TEXT MATCHES:")
               found = 0
-              for item in parser.text:
-                  if any(k in item.lower() for k in keywords):
-                      print(item[:250])
+
+              for keyword in keywords:
+                  matches = list(re.finditer(
+                      re.escape(keyword),
+                      content,
+                      flags=re.IGNORECASE
+                  ))
+
+                  if not matches:
+                      continue
+
+                  print(
+                      f"\n{keyword}: "
+                      f"{len(matches)} occurrences"
+                  )
+
+                  for match in matches[:5]:
+                      start = max(0, match.start() - 250)
+                      end = min(
+                          len(content),
+                          match.end() + 350
+                      )
+
+                      snippet = content[start:end]
+                      snippet = " ".join(snippet.split())
+
+                      print(snippet[:650])
+                      print("---")
+
                       found += 1
-                      if found >= 10:
-                          break
 
-          print("\n" + "=" * 60)
-          print("TEST SUMMARY")
-          print(
-              f"Connected to {len(working)} "
-              f"of {len(sources)} sources."
-          )
+              print("\nPOSSIBLE API ENDPOINTS:")
 
-          for result in results:
-              status = (
-                  "CONNECTED"
-                  if result["error"] is None
-                  else "FAILED"
-              )
-              print(f"{status}: {result['label']}")
+              patterns = [
+                  r'["\']([^"\']*(?:api|leaderboard|'
+                  r'closest|bullseye|proximity|cttp)'
+                  r'[^"\']*)["\']',
+                  r'url\s*:\s*["\']([^"\']+)["\']',
+              ]
 
-          if not working:
-              print(
-                  "\nNo SGT pages were reachable. "
-                  "The network connection must be "
-                  "resolved before inspecting bullseye data."
-              )
-          else:
-              print(
-                  "\nReview keyword matches and links "
-                  "to identify possible bullseye sources."
-              )
+              endpoints = set()
+
+              for pattern in patterns:
+                  for match in re.finditer(
+                      pattern,
+                      content,
+                      flags=re.IGNORECASE
+                  ):
+                      value = match.group(1).strip()
+
+                      if (
+                          len(value) < 250
+                          and not value.startswith("data:")
+                      ):
+                          endpoints.add(value)
+
+              for endpoint in sorted(endpoints)[:60]:
+                  print(endpoint)
+
+              print("\nMATCH SUMMARY:", found)
+
+          for name, url in sources.items():
+              inspect(name, url)
 
           print("\nTEST COMPLETE")
           PY
