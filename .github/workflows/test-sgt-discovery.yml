@@ -12,97 +12,95 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Inspect SGT tour JavaScript
+      - name: Inspect tour event loading
         run: |
           python3 - <<'PY'
           import re
           import urllib.request
+          import urllib.error
+          from html.parser import HTMLParser
 
-          urls = {
-              "TOUR SCRIPT":
-                  "https://sgt-static.b-cdn.net/public/tour/page.js?v=2.0.21",
-              "COMMON SCRIPT":
-                  "https://sgt-static.b-cdn.net/public/assets/pageCommon/common.js?v=2.0.21"
-          }
+          BASE = "https://simulatorgolftour.com"
 
-          for name, url in urls.items():
-              print("\n" + "=" * 65)
-              print(name)
+          class Inspector(HTMLParser):
+              def handle_starttag(self, tag, attrs):
+                  attrs = dict(attrs)
+                  if any(
+                      word in str(attrs).lower()
+                      for word in (
+                          "event", "tournament",
+                          "tour-id", "data-tid"
+                      )
+                  ):
+                      print(tag, attrs)
 
-              try:
-                  request = urllib.request.Request(
-                      url,
-                      headers={
-                          "User-Agent": "Mozilla/5.0",
-                          "Accept": "*/*"
-                      }
+          def get(url, referer):
+              request = urllib.request.Request(
+                  url,
+                  headers={
+                      "User-Agent":
+                          "Mozilla/5.0 (Windows NT 10.0; "
+                          "Win64; x64) AppleWebKit/537.36 "
+                          "(KHTML, like Gecko) "
+                          "Chrome/131.0.0.0 Safari/537.36",
+                      "Accept": "*/*",
+                      "Referer": referer
+                  }
+              )
+              with urllib.request.urlopen(
+                  request, timeout=25
+              ) as response:
+                  return response.read().decode(
+                      "utf-8", "replace"
                   )
 
-                  with urllib.request.urlopen(
-                      request, timeout=30
-                  ) as response:
-                      js = response.read().decode(
-                          "utf-8", "replace"
-                      )
+          for tid in ("3927", "3085"):
+              print("\n=== TOUR", tid, "===")
+              url = f"{BASE}/tour/{tid}"
+              try:
+                  html = get(url, BASE + "/")
+                  print("Page bytes:", len(html))
+                  Inspector().feed(html)
 
-                  print("Downloaded:", len(js), "bytes")
+                  for line in html.splitlines():
+                      if re.search(
+                          r'events|tournaments|data-tour|'
+                          r'api|page\.js',
+                          line, re.I
+                      ):
+                          print(
+                              "HTML:", line.strip()[:400]
+                          )
+              except Exception as e:
+                  print("Tour error:", e)
+
+          scripts = [
+              "https://sgt-static.b-cdn.net/"
+              "public/tour/page.js?v=2.0.21",
+              BASE + "/public/tour/page.js?v=2.0.21"
+          ]
+
+          for url in scripts:
+              print("\n=== SCRIPT ===")
+              print(url)
+              try:
+                  js = get(url, BASE + "/tour/3927")
+                  print("Bytes:", len(js))
 
                   lines = js.splitlines()
-                  terms = [
-                      "APIBASE",
-                      "ajax",
-                      "fetch(",
-                      "events",
-                      "tournament",
-                      "tour/",
-                      "Build_Request_Url"
-                  ]
-
-                  matches = set()
-
                   for i, line in enumerate(lines):
-                      if any(
-                          term.lower() in line.lower()
-                          for term in terms
+                      if re.search(
+                          r'APIBASE|ajax|fetch\(|'
+                          r'events|tournaments|'
+                          r'Build_Request_Url|tour/',
+                          line, re.I
                       ):
-                          matches.add(i)
-
-                  print("\nRELEVANT CODE:")
-
-                  for i in sorted(matches):
-                      start = max(0, i - 2)
-                      end = min(len(lines), i + 4)
-
-                      print(
-                          f"\n--- Lines {start+1}-{end} ---"
-                      )
-
-                      for j in range(start, end):
                           print(
-                              f"{j+1}: {lines[j][:350]}"
+                              f"LINE {i+1}: "
+                              f"{line[:500]}"
                           )
-
-                  print("\nPOSSIBLE ENDPOINTS:")
-
-                  for item in sorted(set(
-                      re.findall(
-                          r'["\']([^"\']{1,160})["\']',
-                          js
-                      )
-                  )):
-                      if any(
-                          word in item.lower()
-                          for word in (
-                              "tour",
-                              "event",
-                              "tournament",
-                              "leaderboard"
-                          )
-                      ):
-                          print(item)
-
-              except Exception as error:
-                  print("ERROR:", error)
+              except Exception as e:
+                  print("Script error:", e)
 
           print("\nTEST COMPLETE")
           PY
