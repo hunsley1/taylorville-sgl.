@@ -49,6 +49,11 @@ footer{padding:40px 0;color:#918f87;font-size:13px}
 .small{font-size:12px}
 .error{color:#ffbd9b}
 .handicap{color:#e7c47b;font-weight:700}
+.par3-distance{color:#e7c47b;font-weight:800}
+.par3-note{font-size:12px;color:#b2b0a9;line-height:1.6}
+.par3-top{background:#252116}
+.par3-top td:first-child{font-weight:900}
+.par3-section{border-color:#66522e}
 @media(max-width:700px){
 .stats{gap:8px}
 .stat{padding:13px}
@@ -59,6 +64,7 @@ footer{padding:40px 0;color:#918f87;font-size:13px}
 .hero{padding-top:42px}
 td,th{padding:12px 5px}
 .toolbar select{width:100%}
+.tabs button{padding:10px 13px}
 }
 </style>
 </head>
@@ -104,6 +110,7 @@ td,th{padding:12px 5px}
 <div class="wrap">
 <p id="loadStatus" class="muted small" role="status">Loading league standings from Supabase…</p>
 
+<!-- COMBINED STANDINGS -->
 <section class="panel">
 <div class="row">
 <div>
@@ -133,6 +140,58 @@ td,th{padding:12px 5px}
 <p class="season-note">HCP is each golfer's SGT tournament handicap for this week. Current week scores appear when recorded in Supabase. Official SGT tournament boards are below.</p>
 </section>
 
+<!-- PAR 3 CLOSEST TO PIN - DIRECTLY AFTER COMBINED STANDINGS -->
+<section class="panel par3-section" id="par3Leaderboard">
+<div class="row">
+<div>
+<div class="eyebrow">PAR 3 CHALLENGE</div>
+<h2 style="margin-top:9px">Closest to the Pin</h2>
+</div>
+<span class="pill">BEST SHOT WINS</span>
+</div>
+
+<p class="par3-note">
+Each golfer's single closest recorded Par 3 shot counts.
+Distances are imported automatically from both SGT tournaments.
+Lowest distance wins.
+</p>
+
+<div class="toolbar" style="margin-top:20px">
+<div class="tabs">
+<button id="par3WeeklyBtn" class="active">Weekly</button>
+<button id="par3SeasonBtn">Season</button>
+</div>
+<select id="par3Week" aria-label="Par 3 week">
+<option value="4">Week 4</option>
+</select>
+</div>
+
+<p id="par3Status" class="muted small" role="status">
+Loading closest-to-pin results…
+</p>
+
+<div style="overflow-x:auto">
+<table>
+<thead id="par3Head">
+<tr>
+<th>POS</th>
+<th>PLAYER</th>
+<th>HOLE</th>
+<th>DISTANCE</th>
+</tr>
+</thead>
+<tbody id="par3Body">
+<tr><td colspan="4" class="empty">Loading…</td></tr>
+</tbody>
+</table>
+</div>
+
+<p class="season-note" id="par3Footnote">
+Weekly rankings use each player's closest shot from either tournament.
+</p>
+</section>
+
+<!-- TEAM COMPETITION -->
 <section class="panel">
 <div class="row">
 <div>
@@ -149,6 +208,7 @@ td,th{padding:12px 5px}
 </div>
 </section>
 
+<!-- SEASON STANDINGS -->
 <section class="panel">
 <div class="row">
 <div>
@@ -177,6 +237,7 @@ td,th{padding:12px 5px}
 </div>
 </section>
 
+<!-- WEEKLY ARCHIVE -->
 <section class="panel" id="weeklyArchive">
 <div class="row">
 <div>
@@ -698,6 +759,267 @@ $('archiveWeek').onchange=e=>{
       $(id).innerHTML=
         '<tr><td class="empty">Unable to load standings. Please refresh later.</td></tr>';
     }
+  }
+})();
+
+/* AUTOMATIC PAR 3 LEADERBOARD */
+
+const PAR3_CONFIG={
+  url:'https://xgjziyopzeeneccfaszb.supabase.co',
+  key:'sb_publishable_7ttHIcbCVOCv1rJlWpq0AA_59y0Tw7O'
+};
+
+let par3Shots=[];
+let par3Mode='weekly';
+let par3SelectedWeek=4;
+let par3Loaded=false;
+let par3Error='';
+
+async function par3Fetch(table,select){
+  const url=
+    `${PAR3_CONFIG.url}/rest/v1/${table}`+
+    `?select=${encodeURIComponent(select)}`+
+    `&limit=10000`;
+
+  const response=await fetch(url,{
+    headers:{
+      apikey:PAR3_CONFIG.key,
+      Accept:'application/json'
+    },
+    cache:'no-store'
+  });
+
+  if(!response.ok){
+    throw Error(
+      `Supabase returned ${response.status} for ${table}`
+    );
+  }
+
+  return response.json();
+}
+
+function par3Normalize(name){
+  return String(name||'')
+    .replace(/\s+/g,'')
+    .toLowerCase();
+}
+
+function par3Better(a,b){
+  return (
+    a.distance_ft<b.distance_ft ||
+    (
+      a.distance_ft===b.distance_ft &&
+      (
+        a.week_number<b.week_number ||
+        (
+          a.week_number===b.week_number &&
+          (
+            a.hole_number<b.hole_number ||
+            (
+              a.hole_number===b.hole_number &&
+              a.tournament_id<b.tournament_id
+            )
+          )
+        )
+      )
+    )
+  );
+}
+
+function par3BestShots(shots){
+  const best=new Map();
+
+  for(const shot of shots){
+    const key=par3Normalize(shot.username);
+    if(!key) continue;
+
+    const previous=best.get(key);
+
+    if(!previous || par3Better(shot,previous)){
+      best.set(key,shot);
+    }
+  }
+
+  return [...best.values()].sort((a,b)=>
+    a.distance_ft-b.distance_ft ||
+    a.username.localeCompare(b.username)
+  );
+}
+
+function par3FormatDistance(value){
+  return Number(value).toFixed(2)+' ft';
+}
+
+function par3Render(){
+  const weekly=par3Mode==='weekly';
+
+  setButtons(
+    ['par3WeeklyBtn','par3SeasonBtn'],
+    weekly?'par3WeeklyBtn':'par3SeasonBtn'
+  );
+
+  $('par3Week').style.display=weekly?'':'none';
+
+  $('par3Head').innerHTML=weekly
+    ?`<tr>
+        <th>POS</th>
+        <th>PLAYER</th>
+        <th>HOLE</th>
+        <th>DISTANCE</th>
+      </tr>`
+    :`<tr>
+        <th>POS</th>
+        <th>PLAYER</th>
+        <th>WEEK</th>
+        <th>HOLE</th>
+        <th>DISTANCE</th>
+      </tr>`;
+
+  $('par3Footnote').textContent=weekly
+    ?`Week ${par3SelectedWeek}: each player's closest shot from either tournament counts. Equal distances share rank.`
+    :'Season rankings use each golfer’s single closest shot across all weeks. Equal distances share rank.';
+
+  const columns=weekly?4:5;
+
+  if(par3Error){
+    $('par3Status').textContent='Unable to load Par 3 results.';
+    $('par3Body').innerHTML=
+      `<tr><td colspan="${columns}" class="empty error">${esc(par3Error)}</td></tr>`;
+    return;
+  }
+
+  if(!par3Loaded){
+    $('par3Body').innerHTML=
+      `<tr><td colspan="${columns}" class="empty">Loading Par 3 results…</td></tr>`;
+    return;
+  }
+
+  const relevant=weekly
+    ?par3Shots.filter(
+        s=>s.week_number===par3SelectedWeek
+      )
+    :par3Shots;
+
+  const ranked=par3BestShots(relevant);
+
+  $('par3Status').textContent=weekly
+    ?`Week ${par3SelectedWeek} · ${ranked.length} golfers with recorded shots`
+    :`Season · ${ranked.length} golfers with recorded shots`;
+
+  if(!ranked.length){
+    $('par3Body').innerHTML=
+      `<tr><td colspan="${columns}" class="empty">No closest-to-pin shots recorded for this ${weekly?'week':'season'} yet.</td></tr>`;
+    return;
+  }
+
+  $('par3Body').innerHTML=rowsWithRanks(
+    ranked,
+    'distance_ft',
+    (shot,rank)=>`
+      <tr class="${rank===1?'par3-top':''}">
+        <td class="tag">${rank}</td>
+        <td>${esc(shot.username)}</td>
+        ${weekly?'':`<td>Week ${shot.week_number}</td>`}
+        <td>${shot.hole_number}</td>
+        <td class="par3-distance">${par3FormatDistance(shot.distance_ft)}</td>
+      </tr>`
+  );
+}
+
+function par3SetWeeks(weeks){
+  const numbers=[...new Set(
+    weeks.map(w=>Number(w.week_number))
+      .filter(n=>Number.isInteger(n)&&n>0)
+  )].sort((a,b)=>a-b);
+
+  const available=new Set(
+    par3Shots.map(s=>s.week_number)
+  );
+
+  if(!numbers.length){
+    numbers.push(
+      ...[...available].sort((a,b)=>a-b)
+    );
+  }
+
+  const latestWithShots=numbers
+    .filter(n=>available.has(n))
+    .at(-1);
+
+  const preferred=
+    numbers.includes(currentWeek) &&
+    available.has(currentWeek)
+      ?currentWeek
+      :latestWithShots ??
+       (numbers.includes(currentWeek)
+         ?currentWeek
+         :numbers.at(-1));
+
+  if(preferred!==undefined){
+    par3SelectedWeek=preferred;
+  }
+
+  $('par3Week').innerHTML=numbers.map(n=>`
+    <option value="${n}">
+      Week ${n}${available.has(n)?' · Results':''}
+    </option>
+  `).join('');
+
+  $('par3Week').value=String(par3SelectedWeek);
+}
+
+$('par3WeeklyBtn').onclick=()=>{
+  par3Mode='weekly';
+  par3Render();
+};
+
+$('par3SeasonBtn').onclick=()=>{
+  par3Mode='season';
+  par3Render();
+};
+
+$('par3Week').onchange=e=>{
+  par3SelectedWeek=Number(e.target.value);
+  par3Render();
+};
+
+(async()=>{
+  try{
+    const [shots,weeks]=await Promise.all([
+      par3Fetch(
+        'sgl_par3_shots',
+        'week_number,tournament_id,username,hole_number,distance_ft'
+      ),
+      par3Fetch(
+        'sgl_weeks',
+        'week_number'
+      )
+    ]);
+
+    par3Shots=shots.map(s=>({
+      week_number:Number(s.week_number),
+      tournament_id:Number(s.tournament_id),
+      username:String(s.username||''),
+      hole_number:Number(s.hole_number),
+      distance_ft:Number(s.distance_ft)
+    })).filter(s=>
+      Number.isInteger(s.week_number) &&
+      Number.isInteger(s.hole_number) &&
+      s.hole_number>=1 &&
+      s.hole_number<=18 &&
+      Number.isFinite(s.distance_ft) &&
+      s.distance_ft>=0 &&
+      s.username
+    );
+
+    par3SetWeeks(weeks);
+    par3Loaded=true;
+    par3Render();
+
+  }catch(err){
+    console.error('Par 3 leaderboard error:',err);
+    par3Error=err.message;
+    par3Render();
   }
 })();
 </script>
