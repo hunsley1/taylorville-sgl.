@@ -1,0 +1,364 @@
+
+name: SGT Automatic Par 3 Import
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sgt-par3-import
+  cancel-in-progress: false
+
+jobs:
+  import-par3:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install HTML parser
+        run: python3 -m pip install --quiet beautifulsoup4
+
+      - name: Import closest-to-pin results
+        env:
+          SUPABASE_URL: https://xgjziyopzeeneccfaszb.supabase.co
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import json
+          import urllib.request
+          import urllib.parse
+          from decimal import Decimal, InvalidOperation
+          from bs4 import BeautifulSoup
+
+          BASE = os.environ["SUPABASE_URL"].rstrip("/")
+          KEY = os.environ["SUPABASE_KEY"]
+          SGT = "https://simulatorgolftour.com"
+
+          def db(table, method="GET", payload=None, params=None):
+              url = BASE + "/rest/v1/" + table
+              if params:
+                  url += "?" + urllib.parse.urlencode(
+                      params, safe="(),.*"
+                  )
+
+              headers = {
+                  "apikey": KEY,
+                  "Authorization": "Bearer " + KEY,
+                  "Accept": "application/json"
+              }
+
+              data = None
+              if payload is not None:
+                  data = json.dumps(payload).encode()
+                  headers["Content-Type"] = "application/json"
+                  headers["Prefer"] = (
+                      "resolution=merge-duplicates,"
+                      "return=minimal"
+                  )
+
+              request = urllib.request.Request(
+                  url,
+                  data=data,
+                  headers=headers,
+                  method=method
+              )
+
+              with urllib.request.urlopen(
+                  request, timeout=40
+              ) as response:
+                  body = response.read()
+                  return json.loads(body) if body else None
+
+          def fetch_ctp(tournament_id):
+              url = (
+                  f"{SGT}/sgt-api/leaderboard/"
+                  f"{tournament_id}/ctp"
+              )
+              request = urllib.request.Request(
+                  url,
+                  headers={
+                      "User-Agent": "Mozilla/5.0",
+                      "Accept": "text/html,*/*",
+                      "Referer": SGT + "/"
+                  }
+              )
+
+              with urllib.request.urlopen(
+                  request, timeout=40
+              ) as response:
+                  return response.read().decode(
+                      "utf-8", "replace"
+                  )
+
+          def normalize(value):
+              return re.sub(
+                  r"\s+", "", str(value or "")
+              ).casefold()
+
+          def parse_shots(html):
+              soup = BeautifulSoup(html, "html.parser")
+              shots = {}
+
+              for section in soup.select(".hole-section"):
+                  title = section.select_one(
+                      ".stat-leader-title"
+                  )
+
+                  if title is None:
+                      continue
+
+                  title_text = title.get_text(
+                      " ", strip=True
+                  )
+                  match = re.search(
+                      r"\bHOLE\s+(\d+)\b",
+                      title_text,
+                      re.IGNORECASE
+                  )
+
+                  if not match:
+                      continue
+
+                  hole = int(match.group(1))
+                  if not 1 <= hole <= 18:
+                      continue
+
+                  for row in section.select(
+                      ".hole-leader-row[data-player-name]"
+                  ):
+                      username = row.get(
+                          "data-player-name", ""
+                      ).strip()
+
+                      value = row.select_one(
+                          ".hole-leader-value"
+                      )
+
+                      if not username or value is None:
+                          continue
+
+                      raw = value.get_text(
+                          " ", strip=True
+                      ).replace(",", "")
+
+                      number = re.search(
+                          r"\d+(?:\.\d+)?", raw
+                      )
+
+                      if not number:
+                          continue
+
+                      try:
+                          distance = Decimal(
+                              number.group()
+                          )
+                      except InvalidOperation:
+                          continue
+
+                      if not distance.is_finite():
+                          continue
+
+                      key = (normalize(username), hole)
+
+                      if (
+                          key not in shots
+                          or distance < shots[key][1]
+                      ):
+                          shots[key] = (
+                              username, distance
+                          )
+
+              return [
+                  (username, hole, distance)
+                  for (_, hole), (
+                      username, distance
+                  ) in shots.items()
+              ]
+
+          print("=== AUTOMATIC PAR 3 IMPORT ===",
+                flush=True)
+
+          players = db(
+              "sgl_players",
+              params={"select": "*"}
+          ) or []
+
+          weeks = db(
+              "sgl_weeks",
+              params={"select": "*"}
+          ) or []
+
+          existing = db(
+              "sgl_par3_shots",
+              params={
+                  "select":
+                  "tournament_id,username,"
+                  "hole_number,distance_ft",
+                  "limit": "10000"
+              }
+          ) or []
+
+          player_lookup = {
+              normalize(p["username"]): p["username"]
+              for p in players
+              if p.get("username")
+          }
+
+          # Known SGT spelling difference.
+          if "MIKEFNHONCH047" in [
+              p["username"] for p in players
+              if p.get("username")
+          ]:
+              player_lookup[
+                  normalize("MikeFNHoncho47")
+              ] = "MIKEFNHONCH047"
+
+          best_existing = {
+              (
+                  int(s["tournament_id"]),
+                  normalize(s["username"]),
+                  int(s["hole_number"])
+              ): Decimal(str(s["distance_ft"]))
+              for s in existing
+          }
+
+          print(
+              f"Loaded {len(players)} players, "
+              f"{len(weeks)} weeks and "
+              f"{len(existing)} existing shots",
+              flush=True
+          )
+
+          total = 0
+          errors = 0
+
+          for week in sorted(
+              weeks,
+              key=lambda w: int(w["week_number"])
+          ):
+              week_number = int(
+                  week["week_number"]
+              )
+
+              ids = []
+              for field in (
+                  "tournament_1_id",
+                  "tournament_2_id"
+              ):
+                  value = week.get(field)
+                  if value:
+                      ids.append(str(value).strip())
+
+              ids = list(dict.fromkeys(ids))
+
+              if not ids:
+                  print(
+                      f"Week {week_number}: "
+                      "no tournaments configured",
+                      flush=True
+                  )
+                  continue
+
+              for tid_text in ids:
+                  try:
+                      tid = int(tid_text)
+                      html = fetch_ctp(tid)
+                      shots = parse_shots(html)
+
+                      print(
+                          f"Week {week_number}, "
+                          f"tournament {tid}: "
+                          f"{len(shots)} shots found",
+                          flush=True
+                      )
+
+                      updates = []
+                      unknown = set()
+
+                      for name, hole, distance in shots:
+                          canonical = player_lookup.get(
+                              normalize(name)
+                          )
+
+                          if canonical is None:
+                              unknown.add(name)
+                              continue
+
+                          key = (
+                              tid,
+                              normalize(canonical),
+                              hole
+                          )
+
+                          previous = best_existing.get(key)
+
+                          if (
+                              previous is not None
+                              and distance >= previous
+                          ):
+                              continue
+
+                          updates.append({
+                              "week_number": week_number,
+                              "tournament_id": tid,
+                              "username": canonical,
+                              "hole_number": hole,
+                              "distance_ft": str(distance)
+                          })
+
+                          best_existing[key] = distance
+
+                      if unknown:
+                          print(
+                              "Skipped unknown players: "
+                              + ", ".join(sorted(unknown)),
+                              flush=True
+                          )
+
+                      if updates:
+                          db(
+                              "sgl_par3_shots",
+                              method="POST",
+                              payload=updates,
+                              params={
+                                  "on_conflict":
+                                  "tournament_id,"
+                                  "username,hole_number"
+                              }
+                          )
+
+                      total += len(updates)
+
+                      print(
+                          f"Saved {len(updates)} "
+                          f"new or improved shots",
+                          flush=True
+                      )
+
+                  except Exception as exc:
+                      errors += 1
+                      print(
+                          f"ERROR week {week_number}, "
+                          f"tournament {tid_text}: "
+                          f"{exc}",
+                          flush=True
+                      )
+
+          print(
+              f"\nPAR 3 IMPORT COMPLETE: "
+              f"{total} upserts, "
+              f"{errors} tournament errors",
+              flush=True
+          )
+
+          if errors:
+              raise SystemExit(
+                  "Some tournament imports failed"
+              )
+          PY
