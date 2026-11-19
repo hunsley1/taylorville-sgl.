@@ -24,7 +24,24 @@ li{padding:12px;border-bottom:1px solid #444;overflow-wrap:anywhere}
 .booking-row span{flex:1}
 details summary{cursor:pointer;color:#e0bb69;font-weight:700}
 #adminPassword{max-width:450px}
-@media(max-width:550px){.grid{grid-template-columns:1fr}}
+.day-group{margin:18px 0;border:1px solid #50482f;border-radius:12px;overflow:hidden;background:#17191b}
+.day-header{padding:13px 15px;background:#303024;color:#e0bb69;font-size:17px;font-weight:800}
+.day-header.today{background:#55451f;color:#ffe09a}
+.day-bookings{list-style:none;padding:0;margin:0}
+.day-bookings li{padding:13px 15px;border-bottom:1px solid #393b3c}
+.day-bookings li:last-child{border-bottom:0}
+.day-empty{color:#9fbaa2;font-style:italic}
+.schedule-time{color:#e0bb69;font-weight:750}
+.schedule-name{font-weight:650;margin-top:4px}
+.schedule-type{color:#b9b4a9;font-size:13px;margin-top:3px}
+.schedule-summary{color:#b9b4a9;font-size:13px;margin-top:6px}
+#schedule{list-style:none;padding:0;margin:0}
+#adminSchedule{list-style:none;padding:0}
+@media(max-width:550px){
+.grid{grid-template-columns:1fr}
+main{padding:15px}
+.card{padding:15px}
+}
 </style>
 </head>
 <body>
@@ -36,9 +53,11 @@ details summary{cursor:pointer;color:#e0bb69;font-weight:700}
 <section class="card">
 <h2>Book the simulator</h2>
 <p class="muted">Reservations start every 30 minutes and may cross midnight.</p>
+
 <form id="form">
 <label for="player">Player name</label>
 <input id="player" maxlength="80" required autocomplete="name">
+
 <div class="grid">
 <div>
 <label for="date">Date</label>
@@ -49,6 +68,7 @@ details summary{cursor:pointer;color:#e0bb69;font-weight:700}
 <select id="start"></select>
 </div>
 </div>
+
 <div class="grid">
 <div>
 <label for="duration">Duration</label>
@@ -63,8 +83,10 @@ details summary{cursor:pointer;color:#e0bb69;font-weight:700}
 </select>
 </div>
 </div>
+
 <label for="code">Private league booking code</label>
 <input id="code" type="password" required autocomplete="off">
+
 <p id="preview" class="muted"></p>
 <button id="book" type="submit">Reserve tee time</button>
 </form>
@@ -72,32 +94,52 @@ details summary{cursor:pointer;color:#e0bb69;font-weight:700}
 </section>
 
 <section class="card">
-<h2>Shared schedule</h2>
-<label for="viewdate">View reservations for</label>
-<input id="viewdate" type="date">
+<h2>7-Day Tee Time Schedule</h2>
+<p class="muted">
+Automatically shows today and the next 6 days.
+All times are Central Time.
+</p>
+<p id="scheduleRange" class="muted"></p>
 <p><button id="refresh" type="button">Refresh calendar</button></p>
-<ul id="schedule"><li>Loading reservations…</li></ul>
+<div id="schedule">Loading reservations…</div>
 </section>
 
 <section class="card">
 <details id="admin">
 <summary>Cancel a reservation</summary>
-<p class="muted">Golfers can cancel using the shared league booking code. The organizer can also use the separate admin password. Anyone with the league code can cancel any reservation.</p>
+<p class="muted">
+Golfers can cancel using the shared league booking code.
+The organizer can also use the separate admin password.
+Anyone with the league code can cancel any reservation.
+</p>
+
 <label for="cancelMethod">Cancellation method</label>
 <select id="cancelMethod">
 <option value="league">League booking code</option>
 <option value="admin">Organizer admin password</option>
 </select>
+
 <label for="adminPassword" id="cancelCredentialLabel">League booking code</label>
-<input id="adminPassword" type="password" autocomplete="off" placeholder="Enter the league booking code">
-<p class="muted">Select a date in Shared schedule above, then tap Cancel next to the correct reservation below.</p>
-<ul id="adminSchedule"><li>Open this section to view reservations.</li></ul>
+<input id="adminPassword" type="password" autocomplete="off"
+placeholder="Enter the league booking code">
+
+<p class="muted">
+Reservations from the full 7-day schedule appear below.
+Tap Cancel next to the correct reservation.
+</p>
+
+<ul id="adminSchedule">
+<li>Open this section to view reservations.</li>
+</ul>
+
 <p id="adminMessage" role="status"></p>
 </details>
 </section>
 </main>
 
 <script>
+'use strict';
+
 const SUPABASE_URL='https://xgjziyopzeeneccfaszb.supabase.co';
 const SUPABASE_KEY='sb_publishable_7ttHIcbCVOCv1rJlWpq0AA_59y0Tw7O';
 const TZ='America/Chicago';
@@ -106,7 +148,10 @@ const $=id=>document.getElementById(id);
 function chicagoDate(d=new Date()){
  const p=Object.fromEntries(
   new Intl.DateTimeFormat('en-US',{
-   timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit'
+   timeZone:TZ,
+   year:'numeric',
+   month:'2-digit',
+   day:'2-digit'
   }).formatToParts(d)
   .filter(x=>x.type!=='literal')
   .map(x=>[x.type,x.value])
@@ -114,10 +159,36 @@ function chicagoDate(d=new Date()){
  return p.year+'-'+p.month+'-'+p.day;
 }
 
+function addDays(date,days){
+ const d=new Date(date+'T12:00:00Z');
+ d.setUTCDate(d.getUTCDate()+days);
+ return d.toISOString().slice(0,10);
+}
+
+function dateLabel(date){
+ return new Intl.DateTimeFormat('en-US',{
+  timeZone:'UTC',
+  weekday:'long',
+  month:'short',
+  day:'numeric'
+ }).format(new Date(date+'T12:00:00Z'));
+}
+
 function display(iso){
  return new Intl.DateTimeFormat('en-US',{
-  timeZone:TZ,month:'short',day:'numeric',
-  hour:'numeric',minute:'2-digit'
+  timeZone:TZ,
+  month:'short',
+  day:'numeric',
+  hour:'numeric',
+  minute:'2-digit'
+ }).format(new Date(iso));
+}
+
+function timeOnly(iso){
+ return new Intl.DateTimeFormat('en-US',{
+  timeZone:TZ,
+  hour:'numeric',
+  minute:'2-digit'
  }).format(new Date(iso));
 }
 
@@ -125,11 +196,17 @@ function chicagoISO(date,time){
  const [h,m]=time.split(':').map(Number);
  const wall=Date.parse(date+'T'+time+':00Z');
  let guess=wall+6*3600000;
+
  const formatter=new Intl.DateTimeFormat('en-US',{
-  timeZone:TZ,year:'numeric',month:'2-digit',
-  day:'2-digit',hour:'2-digit',minute:'2-digit',
+  timeZone:TZ,
+  year:'numeric',
+  month:'2-digit',
+  day:'2-digit',
+  hour:'2-digit',
+  minute:'2-digit',
   hourCycle:'h23'
  });
+
  function parts(d){
   return Object.fromEntries(
    formatter.formatToParts(d)
@@ -137,145 +214,262 @@ function chicagoISO(date,time){
    .map(x=>[x.type,Number(x.value)])
   );
  }
+
  for(let i=0;i<4;i++){
   const p=parts(new Date(guess));
-  const seen=Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute);
+  const seen=Date.UTC(
+   p.year,p.month-1,p.day,p.hour,p.minute
+  );
   guess+=wall-seen;
   if(seen===wall)break;
  }
+
  const p=parts(new Date(guess));
- if(p.year!==Number(date.slice(0,4))||
-    p.month!==Number(date.slice(5,7))||
-    p.day!==Number(date.slice(8,10))||
-    p.hour!==h||p.minute!==m)
-  throw Error('This time is unavailable due to daylight saving time.');
+
+ if(
+  p.year!==Number(date.slice(0,4))||
+  p.month!==Number(date.slice(5,7))||
+  p.day!==Number(date.slice(8,10))||
+  p.hour!==h||
+  p.minute!==m
+ ){
+  throw Error(
+   'This time is unavailable due to daylight saving time.'
+  );
+ }
+
  return new Date(guess).toISOString();
 }
 
 async function api(path,options={}){
- const response=await fetch(SUPABASE_URL+'/rest/v1/'+path,{
-  ...options,
-  headers:{
-   apikey:SUPABASE_KEY,
-   'Content-Type':'application/json',
-   ...(options.headers||{})
+ const response=await fetch(
+  SUPABASE_URL+'/rest/v1/'+path,
+  {
+   ...options,
+   headers:{
+    apikey:SUPABASE_KEY,
+    'Content-Type':'application/json',
+    ...(options.headers||{})
+   },
+   cache:'no-store'
   }
- });
+ );
+
  const body=await response.text();
  let data;
- try{data=body?JSON.parse(body):null}
- catch{data=body}
- if(!response.ok)
-  throw Error(data?.message||data?.error||'Request failed');
+
+ try{
+  data=body?JSON.parse(body):null;
+ }catch{
+  data=body;
+ }
+
+ if(!response.ok){
+  throw Error(
+   data?.message||
+   data?.error||
+   'Request failed'
+  );
+ }
+
  return data;
 }
 
 for(let i=0;i<48;i++){
- const h=Math.floor(i/2),m=i%2*30;
- const value=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+ const h=Math.floor(i/2);
+ const m=i%2*30;
+
+ const value=
+  String(h).padStart(2,'0')+':'+
+  String(m).padStart(2,'0');
+
  const option=document.createElement('option');
  option.value=value;
- option.textContent=new Date(Date.UTC(2020,0,1,h,m))
-  .toLocaleTimeString('en-US',{
-   timeZone:'UTC',hour:'numeric',minute:'2-digit'
-  });
+
+ option.textContent=new Date(
+  Date.UTC(2020,0,1,h,m)
+ ).toLocaleTimeString('en-US',{
+  timeZone:'UTC',
+  hour:'numeric',
+  minute:'2-digit'
+ });
+
  $('start').append(option);
 }
 
 for(let i=2;i<=12;i++){
  const option=document.createElement('option');
  option.value=i*30;
- option.textContent=(i/2)+' hour'+(i===2?'':'s');
+ option.textContent=
+  (i/2)+' hour'+(i===2?'':'s');
+
  if(i===4)option.selected=true;
+
  $('duration').append(option);
 }
 
 $('date').value=chicagoDate();
-$('viewdate').value=chicagoDate();
+$('date').min=chicagoDate();
 $('start').value='18:00';
 
 function preview(){
  try{
-  const start=chicagoISO($('date').value,$('start').value);
+  const start=chicagoISO(
+   $('date').value,
+   $('start').value
+  );
+
   const end=new Date(
-   Date.parse(start)+Number($('duration').value)*60000
+   Date.parse(start)+
+   Number($('duration').value)*60000
   ).toISOString();
-  $('preview').textContent=display(start)+' to '+display(end);
+
+  $('preview').textContent=
+   display(start)+' to '+display(end);
+
  }catch(e){
   $('preview').textContent=e.message;
  }
 }
 
-['date','start','duration'].forEach(
- id=>$(id).addEventListener('change',preview)
+['date','start','duration'].forEach(id=>
+ $(id).addEventListener('change',preview)
 );
-preview();
 
-$('form').onsubmit=async event=>{
- event.preventDefault();
- $('book').disabled=true;
- $('message').textContent='Checking and reserving…';
- try{
-  const start=chicagoISO($('date').value,$('start').value);
-  const result=await api('rpc/book_simulator',{
-   method:'POST',
-   body:JSON.stringify({
-    p_player_name:$('player').value.trim(),
-    p_booking_type:$('purpose').value,
-    p_start_time:start,
-    p_duration_minutes:Number($('duration').value),
-    p_booking_code:$('code').value
-   })
-  });
-  $('message').textContent='Reservation confirmed! Booking ID: '+result;
-  $('code').value='';
-  await refresh();
- }catch(e){
-  $('message').textContent=
-   e.message.includes('no_overlapping_bookings')
-   ?'This time is already reserved. Please choose another time.'
-   :'Not booked: '+e.message;
- }finally{
-  $('book').disabled=false;
- }
-};
+preview();
 
 let visibleBookings=[];
 
 async function refresh(){
- const day=$('viewdate').value;
+ const today=chicagoDate();
+ const lastDay=addDays(today,6);
+ const nextDay=addDays(today,7);
+
+ $('scheduleRange').textContent=
+  dateLabel(today)+' through '+dateLabel(lastDay);
+
  $('schedule').replaceChildren();
+
+ const loading=document.createElement('p');
+ loading.className='muted';
+ loading.textContent='Loading 7-day schedule…';
+ $('schedule').append(loading);
+
  try{
-  const start=chicagoISO(day,'00:00');
-  const nextDay=new Date(
-   Date.parse(day+'T00:00:00Z')+86400000
-  ).toISOString().slice(0,10);
+  const start=chicagoISO(today,'00:00');
   const end=chicagoISO(nextDay,'00:00');
-  const path='simulator_bookings?select=id,player_name,booking_type,start_time,end_time'
+
+  const path=
+   'simulator_bookings?select=id,player_name,booking_type,start_time,end_time'
    +'&start_time=lt.'+encodeURIComponent(end)
    +'&end_time=gt.'+encodeURIComponent(start)
    +'&order=start_time.asc';
+
   visibleBookings=await api(path);
 
-  if(!visibleBookings.length){
-   const li=document.createElement('li');
-   li.textContent='No reservations for this day.';
-   $('schedule').append(li);
+  $('schedule').replaceChildren();
+
+  for(let dayIndex=0;dayIndex<7;dayIndex++){
+   const day=addDays(today,dayIndex);
+   const dayStart=Date.parse(
+    chicagoISO(day,'00:00')
+   );
+
+   const following=addDays(day,1);
+   const dayEnd=Date.parse(
+    chicagoISO(following,'00:00')
+   );
+
+   const bookings=visibleBookings.filter(b=>
+    Date.parse(b.start_time)<dayEnd&&
+    Date.parse(b.end_time)>dayStart
+   );
+
+   const group=document.createElement('div');
+   group.className='day-group';
+
+   const header=document.createElement('div');
+   header.className='day-header'+
+    (dayIndex===0?' today':'');
+
+   header.textContent=
+    dateLabel(day)+
+    (dayIndex===0?' · TODAY':'');
+
+   group.append(header);
+
+   const list=document.createElement('ul');
+   list.className='day-bookings';
+
+   if(!bookings.length){
+    const li=document.createElement('li');
+    li.className='day-empty';
+    li.textContent='No reservations · Available';
+    list.append(li);
+   }
+
+   for(const booking of bookings){
+    const li=document.createElement('li');
+
+    const times=document.createElement('div');
+    times.className='schedule-time';
+
+    const beginsBefore=
+     Date.parse(booking.start_time)<dayStart;
+
+    const endsAfter=
+     Date.parse(booking.end_time)>dayEnd;
+
+    if(beginsBefore&&endsAfter){
+     times.textContent='Reserved all day';
+    }else if(beginsBefore){
+     times.textContent=
+      '12:00 AM – '+timeOnly(booking.end_time);
+    }else if(endsAfter){
+     times.textContent=
+      timeOnly(booking.start_time)+' – 12:00 AM';
+    }else{
+     times.textContent=
+      timeOnly(booking.start_time)+' – '+
+      timeOnly(booking.end_time);
+    }
+
+    const name=document.createElement('div');
+    name.className='schedule-name';
+    name.textContent=booking.player_name;
+
+    const type=document.createElement('div');
+    type.className='schedule-type';
+    type.textContent=booking.booking_type;
+
+    li.append(times,name,type);
+    list.append(li);
+   }
+
+   const summary=document.createElement('div');
+   summary.className='schedule-summary';
+   summary.style.padding='0 15px 12px';
+   summary.textContent=
+    bookings.length+
+    (bookings.length===1?' reservation':' reservations');
+
+   group.append(list,summary);
+   $('schedule').append(group);
   }
 
-  for(const row of visibleBookings){
-   const li=document.createElement('li');
-   li.textContent=display(row.start_time)+' – '+
-    display(row.end_time)+' | '+row.player_name+
-    ' | '+row.booking_type;
-   $('schedule').append(li);
-  }
   renderAdmin();
+
  }catch(e){
   visibleBookings=[];
-  const li=document.createElement('li');
-  li.textContent='Unable to load schedule: '+e.message;
-  $('schedule').append(li);
+
+  $('schedule').replaceChildren();
+
+  const error=document.createElement('p');
+  error.className='muted';
+  error.textContent=
+   'Unable to load schedule: '+e.message;
+
+  $('schedule').append(error);
   renderAdmin();
  }
 }
@@ -286,7 +480,8 @@ function renderAdmin(){
 
  if(!visibleBookings.length){
   const li=document.createElement('li');
-  li.textContent='No reservations for this date.';
+  li.textContent=
+   'No reservations in the current 7-day schedule.';
   list.append(li);
   return;
  }
@@ -296,14 +491,18 @@ function renderAdmin(){
   li.className='booking-row';
 
   const info=document.createElement('span');
-  info.textContent=display(booking.start_time)+' – '+
-   display(booking.end_time)+' | '+booking.player_name+
-   ' | '+booking.booking_type;
+
+  info.textContent=
+   display(booking.start_time)+' – '+
+   display(booking.end_time)+' | '+
+   booking.player_name+' | '+
+   booking.booking_type;
 
   const btn=document.createElement('button');
   btn.type='button';
   btn.className='cancel';
   btn.textContent='Cancel';
+
   btn.onclick=()=>cancelBooking(booking,btn);
 
   li.append(info,btn);
@@ -317,18 +516,24 @@ async function cancelBooking(booking,button){
 
  if(!password){
   $('adminMessage').textContent=
-   'Enter the '+(method==='admin'?'admin password':'league booking code')+' first.';
+   'Enter the '+
+   (method==='admin'
+    ?'admin password'
+    :'league booking code')+
+   ' first.';
   return;
  }
 
  if(!confirm(
-  'Cancel '+booking.player_name+'\'s reservation from '+
+  'Cancel '+booking.player_name+
+  '\'s reservation from '+
   display(booking.start_time)+' to '+
   display(booking.end_time)+'?'
  ))return;
 
  button.disabled=true;
- $('adminMessage').textContent='Canceling reservation…';
+ $('adminMessage').textContent=
+  'Canceling reservation…';
 
  try{
   const path=method==='admin'
@@ -350,34 +555,116 @@ async function cancelBooking(booking,button){
    body:JSON.stringify(params)
   });
 
-  if(result!==true)
-   throw Error('Cancellation was not confirmed.');
+  if(result!==true){
+   throw Error(
+    'Cancellation was not confirmed.'
+   );
+  }
 
   $('adminMessage').textContent=
    'Reservation canceled. The time slot is now available.';
+
   $('adminPassword').value='';
   await refresh();
 
  }catch(e){
-  $('adminMessage').textContent='Not canceled: '+e.message;
+  $('adminMessage').textContent=
+   'Not canceled: '+e.message;
  }finally{
   button.disabled=false;
  }
 }
 
+$('form').onsubmit=async event=>{
+ event.preventDefault();
+
+ $('book').disabled=true;
+ $('message').textContent=
+  'Checking and reserving…';
+
+ try{
+  const start=chicagoISO(
+   $('date').value,
+   $('start').value
+  );
+
+  if(Date.parse(start)<Date.now()){
+   throw Error(
+    'Please select a future tee time.'
+   );
+  }
+
+  const result=await api(
+   'rpc/book_simulator',
+   {
+    method:'POST',
+    body:JSON.stringify({
+     p_player_name:$('player').value.trim(),
+     p_booking_type:$('purpose').value,
+     p_start_time:start,
+     p_duration_minutes:
+      Number($('duration').value),
+     p_booking_code:$('code').value
+    })
+   }
+  );
+
+  $('message').textContent=
+   'Reservation confirmed! Booking ID: '+result;
+
+  $('code').value='';
+
+  await refresh();
+
+ }catch(e){
+  $('message').textContent=
+   e.message.includes('no_overlapping_bookings')
+   ?'This time is already reserved. Please choose another time.'
+   :'Not booked: '+e.message;
+
+ }finally{
+  $('book').disabled=false;
+ }
+};
+
 $('cancelMethod').onchange=()=>{
  const admin=$('cancelMethod').value==='admin';
+
  $('cancelCredentialLabel').textContent=
   admin?'Admin password':'League booking code';
+
  $('adminPassword').placeholder=
-  admin?'Enter your private admin password':'Enter the league booking code';
+  admin
+  ?'Enter your private admin password'
+  :'Enter the league booking code';
+
  $('adminPassword').value='';
  $('adminMessage').textContent='';
 };
 
 $('refresh').onclick=refresh;
-$('viewdate').onchange=refresh;
+
 refresh();
+
+setInterval(()=>{
+ const today=chicagoDate();
+ const shown=$('scheduleRange').dataset.today;
+
+ if(shown!==today){
+  $('date').min=today;
+  if($('date').value<today){
+   $('date').value=today;
+   preview();
+  }
+  refresh();
+ }
+},60000);
+
+const originalRefresh=refresh;
+refresh=async function(){
+ $('scheduleRange').dataset.today=chicagoDate();
+ return originalRefresh();
+};
 </script>
 </body>
 </html>
