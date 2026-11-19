@@ -1,0 +1,95 @@
+
+name: Test SGT Par 3 Data
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-par3:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install HTML parser
+        run: python3 -m pip install --quiet beautifulsoup4
+
+      - name: Inspect SGT closest-to-pin structure
+        run: |
+          python3 - <<'PY'
+          import re
+          import urllib.request
+          from bs4 import BeautifulSoup
+
+          BASE = "https://simulatorgolftour.com"
+          TOURNAMENTS = [82721, 82722, 83765, 83767]
+
+          for tid in TOURNAMENTS:
+              print(f"\n=== TOURNAMENT {tid} ===",
+                    flush=True)
+
+              url = (
+                  f"{BASE}/sgt-api/leaderboard/"
+                  f"{tid}/ctp"
+              )
+
+              request = urllib.request.Request(
+                  url,
+                  headers={
+                      "User-Agent": "Mozilla/5.0",
+                      "Accept": "text/html,*/*",
+                      "Referer": BASE + "/"
+                  }
+              )
+
+              try:
+                  with urllib.request.urlopen(
+                      request, timeout=30
+                  ) as response:
+                      html = response.read().decode(
+                          "utf-8", "replace"
+                      )
+
+                  soup = BeautifulSoup(
+                      html, "html.parser"
+                  )
+
+                  print(
+                      "HTML length:", len(html),
+                      flush=True
+                  )
+
+                  print(
+                      "Tables:", len(soup.select("table")),
+                      "Rows:", len(soup.select("tr")),
+                      flush=True
+                  )
+
+                  for tag in soup.find_all(
+                      ["h2", "h3", "h4", "h5",
+                       "table", "tr", "section"]
+                  )[:35]:
+                      print(
+                          "ELEMENT:",
+                          str(tag)[:900],
+                          flush=True
+                      )
+
+                  print(
+                      "TEXT PREVIEW:",
+                      soup.get_text(
+                          " ", strip=True
+                      )[:1600],
+                      flush=True
+                  )
+
+              except Exception as error:
+                  print(
+                      f"ERROR {tid}: {error}",
+                      flush=True
+                  )
+                  raise
+
+          print("\nPAR 3 INSPECTION COMPLETE")
+          PY
