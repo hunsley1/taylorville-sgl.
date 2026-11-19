@@ -15,22 +15,22 @@ jobs:
       - name: Install HTML parser
         run: python3 -m pip install --quiet beautifulsoup4
 
-      - name: Inspect SGT closest-to-pin structure
+      - name: Inspect closest-to-pin HTML
         run: |
           python3 - <<'PY'
-          import re
           import urllib.request
           from bs4 import BeautifulSoup
 
-          BASE = "https://simulatorgolftour.com"
-          TOURNAMENTS = [82721, 82722, 83765, 83767]
+          SITE = "https://simulatorgolftour.com"
 
-          for tid in TOURNAMENTS:
-              print(f"\n=== TOURNAMENT {tid} ===",
-                    flush=True)
+          for tid in (82721, 82722, 83767):
+              print(
+                  f"\n=== TOURNAMENT {tid} ===",
+                  flush=True
+              )
 
               url = (
-                  f"{BASE}/sgt-api/leaderboard/"
+                  f"{SITE}/sgt-api/leaderboard/"
                   f"{tid}/ctp"
               )
 
@@ -39,57 +39,52 @@ jobs:
                   headers={
                       "User-Agent": "Mozilla/5.0",
                       "Accept": "text/html,*/*",
-                      "Referer": BASE + "/"
+                      "Referer": SITE + "/"
                   }
               )
 
-              try:
-                  with urllib.request.urlopen(
-                      request, timeout=30
-                  ) as response:
-                      html = response.read().decode(
-                          "utf-8", "replace"
+              with urllib.request.urlopen(
+                  request, timeout=30
+              ) as response:
+                  html = response.read().decode(
+                      "utf-8", "replace"
+                  )
+
+              soup = BeautifulSoup(
+                  html, "html.parser"
+              )
+
+              # Find the actual HTML containers
+              # holding player names and distances.
+              for tag in soup.find_all(
+                  string=lambda s: (
+                      s and (
+                          "5.17" in s
+                          or "8.53" in s
+                          or "12.83" in s
                       )
-
-                  soup = BeautifulSoup(
-                      html, "html.parser"
                   )
+              )[:8]:
+                  parent = tag.parent
 
                   print(
-                      "HTML length:", len(html),
+                      "\nSHOT ELEMENT:",
+                      str(parent)[:1200],
                       flush=True
                   )
 
-                  print(
-                      "Tables:", len(soup.select("table")),
-                      "Rows:", len(soup.select("tr")),
-                      flush=True
-                  )
-
-                  for tag in soup.find_all(
-                      ["h2", "h3", "h4", "h5",
-                       "table", "tr", "section"]
-                  )[:35]:
+                  if parent.parent:
                       print(
-                          "ELEMENT:",
-                          str(tag)[:900],
+                          "PARENT CONTAINER:",
+                          str(parent.parent)[:2500],
                           flush=True
                       )
 
-                  print(
-                      "TEXT PREVIEW:",
-                      soup.get_text(
-                          " ", strip=True
-                      )[:1600],
-                      flush=True
-                  )
+              print(
+                  "\nHTML FIRST 5000 CHARACTERS:",
+                  html[:5000],
+                  flush=True
+              )
 
-              except Exception as error:
-                  print(
-                      f"ERROR {tid}: {error}",
-                      flush=True
-                  )
-                  raise
-
-          print("\nPAR 3 INSPECTION COMPLETE")
+          print("\nINSPECTION COMPLETE")
           PY
