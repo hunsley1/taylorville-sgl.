@@ -12,95 +12,167 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Inspect tour event loading
+      - name: Discover SGT tournament API
         run: |
           python3 - <<'PY'
           import re
+          import json
           import urllib.request
-          import urllib.error
-          from html.parser import HTMLParser
+          from html import unescape
 
-          BASE = "https://simulatorgolftour.com"
+          SITE = "https://simulatorgolftour.com"
+          TOURS = {
+              "Hunsley1": 3927,
+              "Hunsley2": 3085
+          }
 
-          class Inspector(HTMLParser):
-              def handle_starttag(self, tag, attrs):
-                  attrs = dict(attrs)
-                  if any(
-                      word in str(attrs).lower()
-                      for word in (
-                          "event", "tournament",
-                          "tour-id", "data-tid"
-                      )
-                  ):
-                      print(tag, attrs)
+          HEADERS = {
+              "User-Agent": "Mozilla/5.0",
+              "Accept": "*/*",
+              "Referer": SITE + "/"
+          }
 
-          def get(url, referer):
-              request = urllib.request.Request(
-                  url,
-                  headers={
-                      "User-Agent":
-                          "Mozilla/5.0 (Windows NT 10.0; "
-                          "Win64; x64) AppleWebKit/537.36 "
-                          "(KHTML, like Gecko) "
-                          "Chrome/131.0.0.0 Safari/537.36",
-                      "Accept": "*/*",
-                      "Referer": referer
-                  }
+          def fetch(url):
+              req = urllib.request.Request(
+                  url, headers=HEADERS
               )
               with urllib.request.urlopen(
-                  request, timeout=25
+                  req, timeout=30
               ) as response:
-                  return response.read().decode(
-                      "utf-8", "replace"
+                  return (
+                      response.status,
+                      response.headers.get(
+                          "Content-Type", ""
+                      ),
+                      response.read().decode(
+                          "utf-8", "replace"
+                      )
                   )
 
-          for tid in ("3927", "3085"):
-              print("\n=== TOUR", tid, "===")
-              url = f"{BASE}/tour/{tid}"
+          print("=== FIND API BASE ===")
+
+          page_url = SITE + "/tour/3927"
+          _, _, html = fetch(page_url)
+
+          scripts = re.findall(
+              r'<script[^>]+src=["\']([^"\']+)',
+              html, re.I
+          )
+
+          api_bases = []
+
+          for script in scripts:
+              if script.startswith("//"):
+                  script = "https:" + script
+              elif script.startswith("/"):
+                  script = SITE + script
+
+              if not script.startswith("http"):
+                  continue
+
+              if not (
+                  "common" in script.lower()
+                  or "page.js" in script.lower()
+              ):
+                  continue
+
+              print("Inspecting:", script)
+
               try:
-                  html = get(url, BASE + "/")
-                  print("Page bytes:", len(html))
-                  Inspector().feed(html)
+                  _, _, source = fetch(script)
 
-                  for line in html.splitlines():
-                      if re.search(
-                          r'events|tournaments|data-tour|'
-                          r'api|page\.js',
-                          line, re.I
-                      ):
-                          print(
-                              "HTML:", line.strip()[:400]
-                          )
-              except Exception as e:
-                  print("Tour error:", e)
+                  for match in re.finditer(
+                      r'.{0,120}APIBASE.{0,180}',
+                      source
+                  ):
+                      print(
+                          "API reference:",
+                          match.group(0)[:300]
+                      )
 
-          scripts = [
-              "https://sgt-static.b-cdn.net/"
-              "public/tour/page.js?v=2.0.21",
-              BASE + "/public/tour/page.js?v=2.0.21"
+                  for pattern in (
+                      r'APIBASE\s*=\s*["\']([^"\']+)',
+                      r'APIBASE\s*:\s*["\']([^"\']+)'
+                  ):
+                      api_bases += re.findall(
+                          pattern, source
+                      )
+
+              except Exception as error:
+                  print("Script error:", error)
+
+          for match in re.finditer(
+              r'.{0,100}APIBASE.{0,160}',
+              html
+          ):
+              print(
+                  "Page API reference:",
+                  match.group(0)[:260]
+              )
+
+          api_bases += re.findall(
+              r'APIBASE\s*=\s*["\']([^"\']+)',
+              html
+          )
+
+          candidates = [
+              base for base in api_bases
+              if base.startswith("http")
           ]
 
-          for url in scripts:
-              print("\n=== SCRIPT ===")
-              print(url)
-              try:
-                  js = get(url, BASE + "/tour/3927")
-                  print("Bytes:", len(js))
+          candidates += [
+              SITE + "/sgt-api/",
+              SITE + "/api/"
+          ]
 
-                  lines = js.splitlines()
-                  for i, line in enumerate(lines):
-                      if re.search(
-                          r'APIBASE|ajax|fetch\(|'
-                          r'events|tournaments|'
-                          r'Build_Request_Url|tour/',
-                          line, re.I
-                      ):
+          candidates = list(dict.fromkeys(
+              base.rstrip("/") + "/"
+              for base in candidates
+          ))
+
+          print("\nAPI candidates:", candidates)
+
+          for name, tour_id in TOURS.items():
+              print(
+                  "\n=== TOUR:",
+                  name, tour_id, "==="
+              )
+
+              for base in candidates:
+                  url = (
+                      base +
+                      f"tour/{tour_id}/events"
+                  )
+
+                  print("\nTrying:", url)
+
+                  try:
+                      status, ctype, body = fetch(url)
+
+                      print("HTTP:", status)
+                      print("Content type:", ctype)
+                      print("Length:", len(body))
+                      print("Response preview:")
+                      print(body[:6000])
+
+                      try:
+                          data = json.loads(body)
                           print(
-                              f"LINE {i+1}: "
-                              f"{line[:500]}"
+                              "JSON structure:",
+                              type(data).__name__
                           )
-              except Exception as e:
-                  print("Script error:", e)
+                          if isinstance(data, dict):
+                              print(
+                                  "JSON keys:",
+                                  list(data.keys())
+                              )
+                      except ValueError:
+                          print(
+                              "Response is not JSON"
+                          )
 
-          print("\nTEST COMPLETE")
+                  except Exception as error:
+                      print("Request failed:", error)
+
+          print("\nDISCOVERY TEST COMPLETE")
           PY
