@@ -1,0 +1,321 @@
+
+name: SGT Automatic Tournament Discovery
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  discover-tournaments:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Find and save new SGT tournaments
+        env:
+          SUPABASE_URL: https://xgjziyopzeeneccfaszb.supabase.co
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import json
+          import urllib.request
+          import urllib.parse
+          from html import unescape
+          from html.parser import HTMLParser
+
+          SITE = "https://simulatorgolftour.com"
+          DB = os.environ["SUPABASE_URL"].rstrip("/")
+          KEY = os.environ["SUPABASE_KEY"]
+
+          TOURS = {
+              "Hunsley1": 3927,
+              "Hunsley2": 3085
+          }
+
+          class EventParser(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.events = []
+                  self.current_id = None
+                  self.collecting = False
+                  self.parts = []
+
+              def handle_starttag(self, tag, attrs):
+                  attrs = dict(attrs)
+                  classes = attrs.get("class", "").split()
+                  href = attrs.get("href", "")
+
+                  if (
+                      tag == "a"
+                      and "event-card-name" in classes
+                  ):
+                      match = re.fullmatch(
+                          r"/tournament/(\d+)",
+                          href
+                      )
+                      if match:
+                          self.current_id = int(
+                              match.group(1)
+                          )
+                          self.collecting = True
+                          self.parts = []
+
+              def handle_data(self, data):
+                  if self.collecting:
+                      self.parts.append(data)
+
+              def handle_endtag(self, tag):
+                  if tag == "a" and self.collecting:
+                      name = unescape(
+                          "".join(self.parts)
+                      ).strip()
+
+                      self.events.append(
+                          (self.current_id, name)
+                      )
+
+                      self.current_id = None
+                      self.collecting = False
+                      self.parts = []
+
+          def request(url, method="GET",
+                      payload=None, supabase=False,
+                      extra_headers=None):
+              headers = {
+                  "User-Agent": "Mozilla/5.0",
+                  "Accept": "*/*"
+              }
+
+              if supabase:
+                  headers.update({
+                      "apikey": KEY,
+                      "Authorization": "Bearer " + KEY,
+                      "Content-Type": "application/json"
+                  })
+              else:
+                  headers["Referer"] = SITE + "/"
+
+              if extra_headers:
+                  headers.update(extra_headers)
+
+              body = None
+              if payload is not None:
+                  body = json.dumps(payload).encode()
+
+              req = urllib.request.Request(
+                  url,
+                  data=body,
+                  headers=headers,
+                  method=method
+              )
+
+              with urllib.request.urlopen(
+                  req, timeout=30
+              ) as response:
+                  return response.read().decode(
+                      "utf-8", "replace"
+                  )
+
+          def discover(tour_id):
+              url = (
+                  f"{SITE}/sgt-api/tour/"
+                  f"{tour_id}/events"
+              )
+
+              html = request(url)
+              parser = EventParser()
+              parser.feed(html)
+
+              found = {}
+
+              for tournament_id, name in parser.events:
+                  week_match = re.search(
+                      r"\bTGSL[\s_-]*Week[\s_-]*(\d+)\b",
+                      name,
+                      re.I
+                  )
+
+                  if not week_match:
+                      continue
+
+                  week = int(week_match.group(1))
+
+                  if week < 5:
+                      continue
+
+                  if week in found:
+                      raise RuntimeError(
+                          f"Duplicate TGSL Week {week} "
+                          f"on tour {tour_id}"
+                      )
+
+                  found[week] = tournament_id
+
+                  print(
+                      f"Tour {tour_id}: "
+                      f"Week {week} = "
+                      f"{tournament_id} ({name})"
+                  )
+
+              return found
+
+          def get_weeks():
+              url = (
+                  DB +
+                  "/rest/v1/sgl_weeks"
+                  "?select=week_number,"
+                  "tournament_1_id,"
+                  "tournament_2_id"
+              )
+
+              return json.loads(
+                  request(url, supabase=True)
+              )
+
+          def save_week(week, changes):
+              query = urllib.parse.urlencode({
+                  "week_number": f"eq.{week}"
+              })
+
+              url = (
+                  DB +
+                  "/rest/v1/sgl_weeks?" +
+                  query
+              )
+
+              request(
+                  url,
+                  method="PATCH",
+                  payload=changes,
+                  supabase=True
+              )
+
+          print("=== SGT TOURNAMENT DISCOVERY ===")
+
+          tour_events = {}
+
+          for name, tour_id in TOURS.items():
+              print(
+                  f"\nChecking {name} ({tour_id})"
+              )
+
+              tour_events[name] = discover(tour_id)
+
+          weeks = get_weeks()
+
+          by_week = {
+              int(row["week_number"]): row
+              for row in weeks
+          }
+
+          # Verify which database column belongs
+          # to each SGT tour using Week 4.
+          reference = by_week.get(4)
+
+          if not reference:
+              raise RuntimeError(
+                  "Week 4 reference row not found"
+              )
+
+          first = reference.get("tournament_1_id")
+          second = reference.get("tournament_2_id")
+
+          if (
+              str(first) == "83765"
+              and str(second) == "83767"
+          ):
+              columns = {
+                  "Hunsley1": "tournament_1_id",
+                  "Hunsley2": "tournament_2_id"
+              }
+
+          elif (
+              str(first) == "83767"
+              and str(second) == "83765"
+          ):
+              columns = {
+                  "Hunsley1": "tournament_2_id",
+                  "Hunsley2": "tournament_1_id"
+              }
+
+          else:
+              raise RuntimeError(
+                  "Cannot verify tour-to-column "
+                  "mapping from Week 4. "
+                  "No changes made."
+              )
+
+          print(
+              "\nVerified column mapping:",
+              columns
+          )
+
+          common_weeks = sorted(
+              set(tour_events["Hunsley1"])
+              & set(tour_events["Hunsley2"])
+          )
+
+          updates = 0
+
+          for week in common_weeks:
+              if week not in by_week:
+                  print(
+                      f"Week {week}: no Supabase "
+                      "row, skipping"
+                  )
+                  continue
+
+              row = by_week[week]
+              changes = {}
+              conflict = False
+
+              for name in TOURS:
+                  column = columns[name]
+                  discovered = tour_events[name][week]
+                  existing = row.get(column)
+
+                  if existing not in (None, ""):
+                      if str(existing) != str(discovered):
+                          print(
+                              f"Week {week}: CONFLICT "
+                              f"in {column}: "
+                              f"existing={existing}, "
+                              f"found={discovered}"
+                          )
+                          conflict = True
+                  else:
+                      changes[column] = discovered
+
+              if conflict:
+                  print(
+                      f"Week {week}: skipped "
+                      "to protect existing IDs"
+                  )
+                  continue
+
+              if not changes:
+                  print(
+                      f"Week {week}: already configured"
+                  )
+                  continue
+
+              save_week(week, changes)
+              updates += 1
+
+              print(
+                  f"Week {week}: SAVED {changes}"
+              )
+
+          print("\n=== DISCOVERY COMPLETE ===")
+          print("Weeks updated:", updates)
+          print(
+              "Existing tournament IDs "
+              "were not overwritten."
+          )
+          PY
