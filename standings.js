@@ -6,11 +6,14 @@ const SGL = {
 
 async function sglFetch(table) {
   const response = await fetch(
-    `${SGL.url}/rest/v1/${table}?select=*`,
+    `${SGL.url}/rest/v1/${table}?select=*&limit=10000`,
     {
       headers: {
-        apikey: SGL.key
-      }
+        apikey: SGL.key,
+        Accept: "application/json",
+        "Cache-Control": "no-cache"
+      },
+      cache: "no-store"
     }
   );
 
@@ -21,6 +24,15 @@ async function sglFetch(table) {
   }
 
   return response.json();
+}
+
+function sglNumber(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 async function loadSGLStandings() {
@@ -38,33 +50,61 @@ async function loadSGLStandings() {
 
   const playerTeams = Object.fromEntries(
     players.map(p => [
-      p.username,
+      String(p.username).trim().toLowerCase(),
       teamNames[p.team_id] || "Unassigned"
     ])
   );
 
   const weekInfo = Object.fromEntries(
-    weeks.map(w => [w.week_number, w])
+    weeks.map(w => [Number(w.week_number), w])
   );
 
   const results = scores.map(s => {
-    const week = weekInfo[s.week_number];
-    const par = week?.course_par ?? 72;
+    const weekNumber = Number(s.week_number);
+    const week = weekInfo[weekNumber];
+
+    const par = sglNumber(week?.course_par) ?? 72;
+    const grossRelative = sglNumber(s.gross_relative);
+    const netRelative = sglNumber(s.net_relative);
+    const username = String(s.username || "").trim();
 
     return {
       ...s,
-      team: playerTeams[s.username] || "Unassigned",
+      username,
+      week_number: weekNumber,
+      team:
+        playerTeams[username.toLowerCase()] ||
+        "Unassigned",
       course_par: par,
+      gross_relative: grossRelative,
+      net_relative: netRelative,
       gross_strokes:
-        s.gross_relative == null
+        grossRelative === null
           ? null
-          : par + s.gross_relative,
+          : par + grossRelative,
       net_strokes:
-        s.net_relative == null
+        netRelative === null
           ? null
-          : par + s.net_relative
+          : par + netRelative
     };
   });
+
+  console.log(
+    "SGL scores loaded:",
+    results.length
+  );
+
+  console.log(
+    "Week 4 players:",
+    results
+      .filter(s => s.week_number === 4)
+      .map(s => ({
+        username: s.username,
+        gross: s.gross_strokes,
+        net: s.net_strokes,
+        status: s.status
+      }))
+  );
 
   window.SGL_DB = {
     players,
