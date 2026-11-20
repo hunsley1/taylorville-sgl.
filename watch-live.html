@@ -219,16 +219,15 @@ footer {
 
   <div id="streamStatus" class="status">
     <span class="dot"></span>
-    <span id="statusText">STREAM OFFLINE</span>
+    <span id="statusText">CHECKING STREAM...</span>
   </div>
 
   <div id="offlineDisplay" class="offline">
     <div class="offline-icon">⛳</div>
-    <h2>We're Currently Offline</h2>
-    <p>
-      The simulator isn't broadcasting right now.
-      Check back during our next golf session
-      to watch live.
+    <h2 id="offlineTitle">Checking Broadcast</h2>
+    <p id="offlineMessage">
+      Checking whether the simulator is
+      currently broadcasting.
     </p>
   </div>
 
@@ -247,14 +246,15 @@ footer {
   </p>
 
   <a class="btn"
-     href="https://www.youtube.com/@tgsltaylorvillesimulatorgolfle/live"
+     id="watchYoutube"
+     href="https://www.youtube.com/channel/UC-WJOLQudbw8xO7WclLjd2Q/live"
      target="_blank"
      rel="noopener noreferrer">
     Watch on YouTube
   </a>
 
   <a class="btn secondary"
-     href="https://www.youtube.com/@tgsltaylorvillesimulatorgolfle"
+     href="https://www.youtube.com/channel/UC-WJOLQudbw8xO7WclLjd2Q"
      target="_blank"
      rel="noopener noreferrer">
     Visit TGSL YouTube Channel
@@ -263,6 +263,10 @@ footer {
   <a class="btn secondary" href="index.html">
     Return to League Standings
   </a>
+
+  <p class="notice" id="refreshNotice">
+    Broadcast status updates automatically.
+  </p>
 
 </section>
 </main>
@@ -275,49 +279,195 @@ footer {
 "use strict";
 
 const CHANNEL_ID = "UC-WJOLQudbw8xO7WclLjd2Q";
+const STATUS_FILE = "youtube-live.json";
+const CHECK_INTERVAL = 60000;
+const MAX_STATUS_AGE = 60 * 60 * 1000;
 
-/*
-  Set to true when broadcasting.
-  Set to false when offline.
+let currentVideoId = "";
+let lastKnownStatus = null;
 
-  This is a temporary manual setting.
-  Automatic live detection can be added later.
-*/
-const STREAM_LIVE = false;
+const statusElement =
+  document.getElementById("streamStatus");
 
-function updateStream() {
-  const status = document.getElementById("streamStatus");
-  const statusText = document.getElementById("statusText");
-  const offline = document.getElementById("offlineDisplay");
-  const live = document.getElementById("liveDisplay");
-  const notice = document.getElementById("liveNotice");
-  const player = document.getElementById("youtubePlayer");
+const statusText =
+  document.getElementById("statusText");
 
-  if (STREAM_LIVE) {
-    status.classList.add("live");
-    statusText.textContent = "LIVE NOW";
+const offlineDisplay =
+  document.getElementById("offlineDisplay");
 
-    offline.hidden = true;
-    live.hidden = false;
-    notice.hidden = false;
+const offlineTitle =
+  document.getElementById("offlineTitle");
 
-    player.src =
-      "https://www.youtube.com/embed/live_stream?channel=" +
-      encodeURIComponent(CHANNEL_ID) +
-      "&autoplay=0";
-  } else {
-    status.classList.remove("live");
-    statusText.textContent = "STREAM OFFLINE";
+const offlineMessage =
+  document.getElementById("offlineMessage");
 
-    offline.hidden = false;
-    live.hidden = true;
-    notice.hidden = true;
+const liveDisplay =
+  document.getElementById("liveDisplay");
 
+const liveNotice =
+  document.getElementById("liveNotice");
+
+const player =
+  document.getElementById("youtubePlayer");
+
+const watchYoutube =
+  document.getElementById("watchYoutube");
+
+const refreshNotice =
+  document.getElementById("refreshNotice");
+
+function showOffline(
+  title = "We're Currently Offline",
+  message = "The simulator isn't broadcasting right now. Check back during our next golf session to watch live.",
+  statusLabel = "STREAM OFFLINE"
+) {
+  statusElement.classList.remove("live");
+  statusText.textContent = statusLabel;
+
+  offlineTitle.textContent = title;
+  offlineMessage.textContent = message;
+
+  offlineDisplay.hidden = false;
+  liveDisplay.hidden = true;
+  liveNotice.hidden = true;
+
+  if (currentVideoId || player.hasAttribute("src")) {
     player.removeAttribute("src");
+  }
+
+  currentVideoId = "";
+
+  watchYoutube.href =
+    "https://www.youtube.com/channel/" +
+    CHANNEL_ID + "/live";
+}
+
+function showLive(videoId) {
+  if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+    showOffline();
+    return;
+  }
+
+  statusElement.classList.add("live");
+  statusText.textContent = "LIVE NOW";
+
+  offlineDisplay.hidden = true;
+  liveDisplay.hidden = false;
+  liveNotice.hidden = false;
+
+  if (currentVideoId !== videoId) {
+    player.src =
+      "https://www.youtube.com/embed/" +
+      encodeURIComponent(videoId) +
+      "?autoplay=0&rel=0";
+
+    currentVideoId = videoId;
+  }
+
+  watchYoutube.href =
+    "https://www.youtube.com/watch?v=" +
+    encodeURIComponent(videoId);
+}
+
+async function checkLiveStatus() {
+  try {
+    const response = await fetch(
+      STATUS_FILE + "?t=" + Date.now(),
+      {
+        cache: "no-store"
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        "Status request failed: " + response.status
+      );
+    }
+
+    const data = await response.json();
+
+    if (
+      typeof data.live !== "boolean" ||
+      typeof data.checkedAt !== "string"
+    ) {
+      throw new Error("Invalid stream status data");
+    }
+
+    const checkedAt = Date.parse(data.checkedAt);
+    const age = Date.now() - checkedAt;
+
+    if (
+      !Number.isFinite(checkedAt) ||
+      age < -300000 ||
+      age > MAX_STATUS_AGE
+    ) {
+      throw new Error("Stream status is outdated");
+    }
+
+    lastKnownStatus = data;
+
+    if (
+      data.live === true &&
+      typeof data.videoId === "string" &&
+      /^[a-zA-Z0-9_-]{11}$/.test(data.videoId)
+    ) {
+      showLive(data.videoId);
+    } else {
+      showOffline();
+    }
+
+    refreshNotice.textContent =
+      "Broadcast status updates automatically. " +
+      "Last checked: " +
+      new Date(checkedAt).toLocaleTimeString(
+        [], {
+          hour: "numeric",
+          minute: "2-digit"
+        }
+      );
+
+  } catch (error) {
+    console.error(
+      "Unable to check YouTube status:",
+      error
+    );
+
+    if (
+      lastKnownStatus &&
+      lastKnownStatus.live === true &&
+      currentVideoId
+    ) {
+      refreshNotice.textContent =
+        "Unable to refresh broadcast status. " +
+        "Showing the last known livestream.";
+    } else {
+      showOffline(
+        "Broadcast Status Unavailable",
+        "We couldn't confirm whether the simulator is live. You can check our YouTube channel using the button below.",
+        "STATUS UNAVAILABLE"
+      );
+
+      refreshNotice.textContent =
+        "Automatic status is temporarily unavailable.";
+    }
   }
 }
 
-updateStream();
+checkLiveStatus();
+
+setInterval(
+  checkLiveStatus,
+  CHECK_INTERVAL
+);
+
+document.addEventListener(
+  "visibilitychange",
+  function() {
+    if (!document.hidden) {
+      checkLiveStatus();
+    }
+  }
+);
 </script>
 
 </body>
