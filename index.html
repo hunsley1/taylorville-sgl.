@@ -60,9 +60,32 @@ footer{padding:40px 0;text-align:center;color:#b5c3ad;font-size:12px}
 .venmo-btn{background:linear-gradient(135deg,#1688f6,#0059aa);color:#fff;box-shadow:inset 0 1px #ffffff55}
 .venmo-handle{font-weight:800;color:#f8f1d9}
 .payment-note{margin:0}
+
+/* TGSL WATCH LIVE SECTION */
+.live-section{
+  border:2px solid #e0bb59;
+  background:linear-gradient(110deg,rgba(2,28,15,.96),rgba(15,58,27,.86));
+}
+.live-layout{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(175px,300px);
+  gap:18px;
+  align-items:center;
+}
+.live-info h2{margin:8px 0}
+.live-actions{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  text-align:center;
+}
+.live-actions .btn{display:block}
+.live-note{margin:0}
+.live-icon{font-size:28px;margin-bottom:8px}
+
 @media(max-width:750px){
-.booking-layout{grid-template-columns:1fr;gap:15px}
-.booking-actions{max-width:430px;width:100%;margin:auto}
+.booking-layout,.live-layout{grid-template-columns:1fr;gap:15px}
+.booking-actions,.live-actions{max-width:430px;width:100%;margin:auto}
 }
 @media(max-width:700px){
 .wrap{padding:0 14px}
@@ -72,7 +95,7 @@ footer{padding:40px 0;text-align:center;color:#b5c3ad;font-size:12px}
 td,th{padding:11px 6px;font-size:13px}
 th{font-size:10px}
 .toolbar select{width:100%}
-.booking .btn{width:100%;text-align:center}
+.booking .btn,.live-section .btn{width:100%;text-align:center}
 .pill{font-size:10px}
 .subtitle{letter-spacing:.15em}
 .brand{font-size:clamp(27px,8vw,43px)}
@@ -105,6 +128,38 @@ th{font-size:10px}
 </div>
 </div>
 </section>
+
+<!-- TGSL WATCH LIVE -->
+<section class="panel live-section" id="watchLive">
+<div class="live-layout">
+<div class="live-info">
+<div class="eyebrow">TGSL LIVE BROADCAST</div>
+<h2>Watch Live Golf</h2>
+<p class="muted">
+Watch Taylorville Simulator Golf League matches,
+tournaments, and practice sessions directly
+from our golf simulator.
+</p>
+<p class="season-note live-note">
+Watch our broadcasts on your phone, tablet,
+or computer. Streams will be available
+when our simulator is broadcasting.
+</p>
+</div>
+<div class="live-actions">
+<div class="live-icon">⛳</div>
+<a class="btn" href="watch-live.html">
+Watch Live Golf →
+</a>
+<a class="btn secondary"
+href="https://www.youtube.com/@tgsltaylorvillesimulatorgolfle"
+target="_blank" rel="noopener noreferrer">
+Visit TGSL YouTube Channel
+</a>
+</div>
+</div>
+</section>
+<!-- END TGSL WATCH LIVE -->
 
 <p id="loadStatus" class="muted small" role="status">Loading league standings…</p>
 
