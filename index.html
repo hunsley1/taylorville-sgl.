@@ -106,7 +106,7 @@ th{font-size:10px}
 </div>
 </section>
 
-<p id="loadStatus" class="muted small" role="status">Loading league standings from Supabase…</p>
+<p id="loadStatus" class="muted small" role="status">Loading league standings…</p>
 
 <section class="panel">
 <div class="row">
@@ -130,7 +130,7 @@ th{font-size:10px}
 </tr>
 </thead>
 <tbody id="board">
-<tr><td colspan="4" class="empty">Loading…</td></tr>
+<tr><td colspan="4" class="empty">Loading current scores…</td></tr>
 </tbody>
 </table>
 </div>
@@ -159,12 +159,7 @@ th{font-size:10px}
 <div style="overflow-x:auto">
 <table>
 <thead id="par3Head">
-<tr>
-<th>POS</th>
-<th>PLAYER</th>
-<th>HOLE</th>
-<th>DISTANCE</th>
-</tr>
+<tr><th>POS</th><th>PLAYER</th><th>HOLE</th><th>DISTANCE</th></tr>
 </thead>
 <tbody id="par3Body">
 <tr><td colspan="4" class="empty">Loading…</td></tr>
@@ -186,11 +181,8 @@ th{font-size:10px}
 <table>
 <thead>
 <tr>
-<th>POS</th>
-<th>TEAM</th>
-<th>FINISHED</th>
-<th>WEEKLY NET</th>
-<th>STATUS</th>
+<th>POS</th><th>TEAM</th><th>FINISHED</th>
+<th>WEEKLY NET</th><th>STATUS</th>
 </tr>
 </thead>
 <tbody id="weeklyTeams">
@@ -217,12 +209,8 @@ th{font-size:10px}
 <table>
 <thead>
 <tr>
-<th>POS</th>
-<th>PLAYER</th>
-<th>TEAM</th>
-<th>ROUNDS</th>
-<th>TOTAL</th>
-<th>AVG</th>
+<th>POS</th><th>PLAYER</th><th>TEAM</th>
+<th>ROUNDS</th><th>TOTAL</th><th>AVG</th>
 </tr>
 </thead>
 <tbody id="seasonPlayers">
@@ -235,11 +223,8 @@ th{font-size:10px}
 <table>
 <thead>
 <tr>
-<th>POS</th>
-<th>TEAM</th>
-<th>WEEKS</th>
-<th>SEASON NET</th>
-<th>STATUS</th>
+<th>POS</th><th>TEAM</th><th>WEEKS</th>
+<th>SEASON NET</th><th>STATUS</th>
 </tr>
 </thead>
 <tbody id="seasonTeams">
@@ -286,692 +271,966 @@ th{font-size:10px}
 </div>
 <div id="archive" class="muted">Loading tournament schedule…</div>
 </section>
-
 </main>
 
 <footer>
 <div class="wrap">© Taylorville SGL · Independent league website · Not affiliated with Simulator Golf Tour</div>
 </footer>
 
-<script src="standings.js?v=2"></script>
+<script src="standings.js?v=3"></script>
 <script>
-'use strict';
+"use strict";
 
-const $=id=>document.getElementById(id);
+const $ = id => document.getElementById(id);
 
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({
-'&':'&amp;',
-'<':'&lt;',
-'>':'&gt;',
-'"':'&quot;',
-"'":'&#39;'
-}[c]));
-
-let db=null;
-let currentWeek=4;
-let view='gross';
-let seasonView='gross';
-let archiveView='gross';
-let archiveCategory='individual';
-let archiveWeek=3;
-
-const isScore=x=>
-typeof x==='number'&&Number.isFinite(x);
-
-const byScore=(a,b,k)=>
-a[k]-b[k]||
-String(a.username||a.team)
-.localeCompare(String(b.username||b.team));
-
-function formatHandicap(v){
-if(v===null||v===undefined||v==='')return '—';
-const n=Number(v);
-return Number.isFinite(n)?n.toFixed(1):'—';
-}
-
-function setButtons(ids,active){
-ids.forEach(id=>
-$(id).classList.toggle('active',id===active)
-);
-}
-
-function rowsWithRanks(items,field,renderer){
-let prev=null,rank=0;
-return items.map((item,i)=>{
-if(prev===null||item[field]!==prev)rank=i+1;
-prev=item[field];
-return renderer(item,rank);
-}).join('');
-}
-
-function teamMap(){
-const names=new Map(
-db.teams.map(t=>[t.id,t.team_name])
+const esc = s => String(s ?? "").replace(
+  /[&<>"']/g,
+  c => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  })[c]
 );
 
-return new Map(
-db.players.map(p=>[
-String(p.username).trim().toLowerCase(),
-names.get(p.team_id)||'Unassigned'
-])
-);
+let db = null;
+let currentWeek = 4;
+let view = "gross";
+let seasonView = "gross";
+let archiveView = "gross";
+let archiveCategory = "individual";
+let archiveWeek = 3;
+let leagueFullyLoaded = false;
+
+const isScore = x =>
+  typeof x === "number" && Number.isFinite(x);
+
+const byScore = (a, b, k) =>
+  a[k] - b[k] ||
+  String(a.username || a.team)
+    .localeCompare(String(b.username || b.team));
+
+function formatHandicap(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) return "—";
+
+  const number = Number(value);
+  return Number.isFinite(number)
+    ? number.toFixed(1)
+    : "—";
 }
 
-function weekScores(number){
-return db.scores.filter(s=>
-Number(s.week_number)===Number(number)&&
-String(s.status||'played')
-.trim().toLowerCase()==='played'
-);
+function setButtons(ids, active) {
+  ids.forEach(id =>
+    $(id).classList.toggle("active", id === active)
+  );
 }
 
-function completeWeeks(){
-return db.weeks
-.filter(w=>w.finalized)
-.sort((a,b)=>a.week_number-b.week_number);
+function rowsWithRanks(items, field, renderer) {
+  let previous = null;
+  let rank = 0;
+
+  return items.map((item, index) => {
+    if (
+      previous === null ||
+      item[field] !== previous
+    ) {
+      rank = index + 1;
+    }
+
+    previous = item[field];
+    return renderer(item, rank);
+  }).join("");
 }
 
-function teamResults(number){
-const teams=new Map(
-db.teams.map(t=>[
-t.team_name,
-{team:t.team_name,total:0,count:0}
-])
-);
+function teamMap() {
+  const names = new Map(
+    db.teams.map(t => [
+      String(t.id),
+      t.team_name
+    ])
+  );
 
-const assignments=teamMap();
-
-for(const s of weekScores(number)){
-const username=String(s.username||'')
-.trim().toLowerCase();
-
-const t=teams.get(assignments.get(username));
-
-if(t&&isScore(s.net_strokes)){
-t.total+=s.net_strokes;
-t.count++;
-}
+  return new Map(
+    db.players.map(p => [
+      String(p.username).trim().toLowerCase(),
+      names.get(String(p.team_id)) || "Unassigned"
+    ])
+  );
 }
 
-return [...teams.values()]
-.map(t=>({...t,complete:t.count===4}))
-.sort((a,b)=>
-Number(b.complete)-Number(a.complete)||
-(a.complete?a.total:Infinity)-
-(b.complete?b.total:Infinity)||
-a.team.localeCompare(b.team)
-);
+function weekScores(number) {
+  if (!db) return [];
+
+  return db.scores.filter(s =>
+    Number(s.week_number) === Number(number) &&
+    String(s.status || "played")
+      .trim().toLowerCase() === "played"
+  );
 }
 
-function renderCurrent(){
-$('currentWeekLabel').textContent=
-'CURRENT WEEK • WEEK '+currentWeek;
+function completeWeeks() {
+  if (!db) return [];
 
-const field=view+'_strokes';
-$('scoreHead').textContent=view.toUpperCase();
+  return db.weeks
+    .filter(w => w.finalized)
+    .sort((a, b) =>
+      Number(a.week_number) -
+      Number(b.week_number)
+    );
+}
 
-const sorted=weekScores(currentWeek)
-.filter(s=>isScore(s[field]))
-.sort((a,b)=>byScore(a,b,field));
+function teamResults(number) {
+  const teams = new Map(
+    db.teams.map(t => [
+      t.team_name,
+      {
+        team: t.team_name,
+        total: 0,
+        count: 0
+      }
+    ])
+  );
 
-$('board').innerHTML=sorted.length?
-rowsWithRanks(sorted,field,(s,rank)=>`
+  const assignments = teamMap();
+
+  for (const score of weekScores(number)) {
+    const username = String(score.username || "")
+      .trim().toLowerCase();
+
+    const team = teams.get(assignments.get(username));
+
+    if (team && isScore(score.net_strokes)) {
+      team.total += score.net_strokes;
+      team.count++;
+    }
+  }
+
+  return [...teams.values()]
+    .map(t => ({
+      ...t,
+      complete: t.count === 4
+    }))
+    .sort((a, b) =>
+      Number(b.complete) - Number(a.complete) ||
+      (a.complete ? a.total : Infinity) -
+      (b.complete ? b.total : Infinity) ||
+      a.team.localeCompare(b.team)
+    );
+}
+
+// Display current scores without waiting for teams.
+function renderCurrentScores() {
+  if (!db) return;
+
+  $("currentWeekLabel").textContent =
+    "CURRENT WEEK • WEEK " + currentWeek;
+
+  const field = view + "_strokes";
+
+  $("scoreHead").textContent =
+    view.toUpperCase();
+
+  const scores = weekScores(currentWeek)
+    .filter(s => isScore(s[field]))
+    .sort((a, b) => byScore(a, b, field));
+
+  $("board").innerHTML = scores.length
+    ? rowsWithRanks(
+        scores,
+        field,
+        (score, rank) => `
 <tr>
 <td class="tag">${rank}</td>
-<td>${esc(s.username)}</td>
-<td class="handicap">${formatHandicap(s.handicap)}</td>
-<td><strong>${s[field]}</strong></td>
-</tr>`):
-'<tr><td colspan="4" class="empty">No combined scores entered for this week.</td></tr>';
+<td>${esc(score.username)}</td>
+<td class="handicap">${formatHandicap(score.handicap)}</td>
+<td><strong>${score[field]}</strong></td>
+</tr>`
+      )
+    : `<tr>
+<td colspan="4" class="empty">
+No combined scores entered for this week.
+</td>
+</tr>`;
+}
 
-const teams=teamResults(currentWeek);
+function renderCurrentTeams() {
+  if (!leagueFullyLoaded) return;
 
-$('weeklyTeams').innerHTML=teams.map((t,i)=>`
+  const teams = teamResults(currentWeek);
+
+  $("weeklyTeams").innerHTML =
+    teams.map((team, index) => `
 <tr>
-<td class="tag">${t.complete?i+1:'—'}</td>
-<td>${esc(t.team)}</td>
-<td>${t.count}/4</td>
-<td><strong>${t.count?(t.total>0?'+':'')+t.total:'—'}</strong></td>
-<td>${t.complete?'Complete':'Pending'}</td>
-</tr>`).join('');
+<td class="tag">${team.complete ? index + 1 : "—"}</td>
+<td>${esc(team.team)}</td>
+<td>${team.count}/4</td>
+<td><strong>${
+  team.count
+    ? (team.total > 0 ? "+" : "") + team.total
+    : "—"
+}</strong></td>
+<td>${team.complete ? "Complete" : "Pending"}</td>
+</tr>`).join("");
 }
 
-function renderSeason(){
-const completed=completeWeeks();
-const assignments=teamMap();
-const players=new Map();
-
-for(const w of completed){
-for(const s of weekScores(w.week_number)){
-if(!isScore(s.gross_strokes)||
-!isScore(s.net_strokes))continue;
-
-const key=String(s.username||'')
-.trim().toLowerCase();
-
-if(!players.has(key)){
-players.set(key,{
-username:s.username,
-team:assignments.get(key)||'Unassigned',
-rounds:0,
-gross_strokes:0,
-net_strokes:0
-});
+function renderCurrent() {
+  renderCurrentScores();
+  renderCurrentTeams();
 }
 
-const p=players.get(key);
-p.rounds++;
-p.gross_strokes+=s.gross_strokes;
-p.net_strokes+=s.net_strokes;
-}
-}
+function renderSeason() {
+  if (!leagueFullyLoaded) return;
 
-const field=seasonView+'_strokes';
+  const completed = completeWeeks();
+  const assignments = teamMap();
+  const players = new Map();
 
-const ranked=[...players.values()]
-.sort((a,b)=>byScore(a,b,field));
+  for (const week of completed) {
+    for (const score of weekScores(week.week_number)) {
+      if (
+        !isScore(score.gross_strokes) ||
+        !isScore(score.net_strokes)
+      ) continue;
 
-$('seasonPlayers').innerHTML=ranked.length?
-rowsWithRanks(ranked,field,(p,rank)=>`
+      const key = String(score.username || "")
+        .trim().toLowerCase();
+
+      if (!players.has(key)) {
+        players.set(key, {
+          username: score.username,
+          team: assignments.get(key) || "Unassigned",
+          rounds: 0,
+          gross_strokes: 0,
+          net_strokes: 0
+        });
+      }
+
+      const player = players.get(key);
+
+      player.rounds++;
+      player.gross_strokes += score.gross_strokes;
+      player.net_strokes += score.net_strokes;
+    }
+  }
+
+  const field = seasonView + "_strokes";
+
+  const ranked = [...players.values()]
+    .sort((a, b) => byScore(a, b, field));
+
+  $("seasonPlayers").innerHTML =
+    ranked.length
+      ? rowsWithRanks(
+          ranked,
+          field,
+          (player, rank) => `
 <tr>
 <td class="tag">${rank}</td>
-<td>${esc(p.username)}</td>
-<td>${esc(p.team)}</td>
-<td>${p.rounds}</td>
-<td><strong>${p[field]}</strong></td>
-<td>${(p[field]/p.rounds).toFixed(2)}</td>
-</tr>`):
-'<tr><td colspan="6" class="empty">No finalized rounds yet.</td></tr>';
+<td>${esc(player.username)}</td>
+<td>${esc(player.team)}</td>
+<td>${player.rounds}</td>
+<td><strong>${player[field]}</strong></td>
+<td>${(player[field] / player.rounds).toFixed(2)}</td>
+</tr>`
+        )
+      : `<tr>
+<td colspan="6" class="empty">No finalized rounds yet.</td>
+</tr>`;
 
-const totals=new Map(
-db.teams.map(t=>[
-t.team_name,
-{team:t.team_name,weeks:0,total:0}
-])
-);
+  const totals = new Map(
+    db.teams.map(t => [
+      t.team_name,
+      {
+        team: t.team_name,
+        weeks: 0,
+        total: 0
+      }
+    ])
+  );
 
-for(const w of completed){
-for(const t of teamResults(w.week_number)){
-if(t.complete){
-const target=totals.get(t.team);
-target.weeks++;
-target.total+=t.total;
-}
-}
-}
+  for (const week of completed) {
+    for (const team of teamResults(week.week_number)) {
+      if (team.complete) {
+        const target = totals.get(team.team);
+        target.weeks++;
+        target.total += team.total;
+      }
+    }
+  }
 
-const teamRows=[...totals.values()]
-.sort((a,b)=>
-b.weeks-a.weeks||
-a.total-b.total||
-a.team.localeCompare(b.team)
-);
+  const teamRows = [...totals.values()]
+    .sort((a, b) =>
+      b.weeks - a.weeks ||
+      a.total - b.total ||
+      a.team.localeCompare(b.team)
+    );
 
-$('seasonTeams').innerHTML=teamRows.map((t,i)=>`
+  $("seasonTeams").innerHTML =
+    teamRows.map((team, index) => `
 <tr>
-<td class="tag">${t.weeks?i+1:'—'}</td>
-<td>${esc(t.team)}</td>
-<td>${t.weeks}</td>
-<td><strong>${t.weeks?t.total:'—'}</strong></td>
-<td>${t.weeks===completed.length?'Complete':'Incomplete'}</td>
-</tr>`).join('');
+<td class="tag">${team.weeks ? index + 1 : "—"}</td>
+<td>${esc(team.team)}</td>
+<td>${team.weeks}</td>
+<td><strong>${team.weeks ? team.total : "—"}</strong></td>
+<td>${
+  team.weeks === completed.length
+    ? "Complete"
+    : "Incomplete"
+}</td>
+</tr>`).join("");
 }
 
-function renderArchive(){
-const completed=completeWeeks();
+function renderArchive() {
+  if (!leagueFullyLoaded) return;
 
-$('completedCount').textContent=
-completed.length+' COMPLETED WEEKS';
+  const completed = completeWeeks();
 
-const sel=$('archiveWeek');
+  $("completedCount").textContent =
+    completed.length + " COMPLETED WEEKS";
 
-if(!completed.some(w=>w.week_number===archiveWeek)){
-archiveWeek=completed.at(-1)?.week_number??0;
-}
+  const select = $("archiveWeek");
 
-sel.innerHTML=completed.map(w=>`
+  if (
+    !completed.some(w =>
+      Number(w.week_number) === Number(archiveWeek)
+    )
+  ) {
+    archiveWeek =
+      completed.at(-1)?.week_number ?? 0;
+  }
+
+  select.innerHTML = completed.map(w => `
 <option value="${w.week_number}">
-Week ${w.week_number}${w.course_name?' · '+esc(w.course_name):''}
-</option>`).join('');
-
-sel.value=String(archiveWeek);
-
-$('archiveScoreTabs').style.display=
-archiveCategory==='teams'?'none':'';
-
-if(!archiveWeek){
-$('archiveHead').innerHTML='';
-$('archiveBody').innerHTML=
-'<tr><td class="empty">No finalized weeks yet.</td></tr>';
-return;
+Week ${w.week_number}${
+  w.course_name ? " · " + esc(w.course_name) : ""
 }
+</option>`).join("");
 
-if(archiveCategory==='individual'){
-const field=archiveView+'_strokes';
+  select.value = String(archiveWeek);
 
-const scores=weekScores(archiveWeek)
-.filter(s=>isScore(s[field]))
-.sort((a,b)=>byScore(a,b,field));
+  $("archiveScoreTabs").style.display =
+    archiveCategory === "teams" ? "none" : "";
 
-$('archiveHead').innerHTML=
-'<tr><th>POS</th><th>GOLFER</th><th>HCP</th><th>STROKES</th></tr>';
+  if (!archiveWeek) {
+    $("archiveHead").innerHTML = "";
+    $("archiveBody").innerHTML =
+      `<tr><td class="empty">
+No finalized weeks yet.
+</td></tr>`;
+    return;
+  }
 
-$('archiveBody').innerHTML=
-rowsWithRanks(scores,field,(s,rank)=>`
+  if (archiveCategory === "individual") {
+    const field = archiveView + "_strokes";
+
+    const scores = weekScores(archiveWeek)
+      .filter(s => isScore(s[field]))
+      .sort((a, b) => byScore(a, b, field));
+
+    $("archiveHead").innerHTML =
+      `<tr>
+<th>POS</th>
+<th>GOLFER</th>
+<th>HCP</th>
+<th>STROKES</th>
+</tr>`;
+
+    $("archiveBody").innerHTML =
+      rowsWithRanks(
+        scores,
+        field,
+        (score, rank) => `
 <tr>
 <td class="tag">${rank}</td>
-<td>${esc(s.username)}</td>
-<td class="handicap">${formatHandicap(s.handicap)}</td>
-<td><strong>${s[field]}</strong></td>
-</tr>`)||
-'<tr><td colspan="4" class="empty">No scores available.</td></tr>';
+<td>${esc(score.username)}</td>
+<td class="handicap">${formatHandicap(score.handicap)}</td>
+<td><strong>${score[field]}</strong></td>
+</tr>`
+      ) ||
+      `<tr>
+<td colspan="4" class="empty">
+No scores available.
+</td>
+</tr>`;
 
-}else{
-const teams=teamResults(archiveWeek);
+  } else {
+    const teams = teamResults(archiveWeek);
 
-$('archiveHead').innerHTML=
-'<tr><th>POS</th><th>TEAM</th><th>PLAYERS</th><th>NET STROKES</th></tr>';
+    $("archiveHead").innerHTML =
+      `<tr>
+<th>POS</th>
+<th>TEAM</th>
+<th>PLAYERS</th>
+<th>NET STROKES</th>
+</tr>`;
 
-$('archiveBody').innerHTML=teams.map((t,i)=>`
+    $("archiveBody").innerHTML =
+      teams.map((team, index) => `
 <tr>
-<td class="tag">${t.complete?i+1:'—'}</td>
-<td>${esc(t.team)}</td>
-<td>${t.count}/4</td>
-<td><strong>${t.complete?t.total:'Incomplete'}</strong></td>
-</tr>`).join('');
+<td class="tag">${team.complete ? index + 1 : "—"}</td>
+<td>${esc(team.team)}</td>
+<td>${team.count}/4</td>
+<td><strong>${
+  team.complete ? team.total : "Incomplete"
+}</strong></td>
+</tr>`).join("");
+  }
 }
-}
 
-function renderSchedule(){
-const weeks=[...db.weeks]
-.sort((a,b)=>a.week_number-b.week_number);
+function renderSchedule() {
+  if (!leagueFullyLoaded) return;
 
-$('weekCount').textContent=
-weeks.length+' WEEKS';
+  const weeks = [...db.weeks]
+    .sort((a, b) =>
+      Number(a.week_number) -
+      Number(b.week_number)
+    );
 
-$('archive').innerHTML=weeks.map(w=>`
+  $("weekCount").textContent =
+    weeks.length + " WEEKS";
+
+  $("archive").innerHTML =
+    weeks.map(week => `
 <div class="row archive-row">
 <div>
-<strong>Week ${w.week_number}</strong>
+<strong>Week ${week.week_number}</strong>
 <div class="small muted">
-${w.finalized?'Finalized':
-w.week_number===currentWeek?'Current week':'Upcoming'}
-${w.course_name?' · '+esc(w.course_name):''}
- · ${weekScores(w.week_number).length} recorded rounds
+${
+  week.finalized
+    ? "Finalized"
+    : Number(week.week_number) === Number(currentWeek)
+      ? "Current week"
+      : "Upcoming"
+}
+${
+  week.course_name
+    ? " · " + esc(week.course_name)
+    : ""
+}
+ · ${weekScores(week.week_number).length} recorded rounds
 </div>
 </div>
-${w.finalized?
-`<button class="btn secondary" data-archive-week="${w.week_number}">View results</button>`:
-''}
-</div>`).join('');
+${
+  week.finalized
+    ? `<button class="btn secondary"
+data-archive-week="${week.week_number}">
+View results
+</button>`
+    : ""
+}
+</div>`).join("");
 
-document.querySelectorAll('[data-archive-week]')
-.forEach(btn=>{
-btn.onclick=()=>{
-archiveWeek=Number(btn.dataset.archiveWeek);
-renderArchive();
-$('weeklyArchive').scrollIntoView({
-behavior:'smooth'
-});
-};
-});
+  document.querySelectorAll(
+    "[data-archive-week]"
+  ).forEach(button => {
+    button.onclick = () => {
+      archiveWeek = Number(
+        button.dataset.archiveWeek
+      );
+
+      renderArchive();
+
+      $("weeklyArchive").scrollIntoView({
+        behavior: "smooth"
+      });
+    };
+  });
 }
 
-function renderAll(){
-renderCurrent();
-renderSeason();
-renderArchive();
-renderSchedule();
+function renderAll() {
+  renderCurrent();
+  renderSeason();
+  renderArchive();
+  renderSchedule();
 }
 
-$('grossBtn').onclick=()=>{
-view='gross';
-setButtons(['grossBtn','netBtn'],'grossBtn');
-renderCurrent();
+$("grossBtn").onclick = () => {
+  view = "gross";
+  setButtons(
+    ["grossBtn", "netBtn"],
+    "grossBtn"
+  );
+  renderCurrentScores();
 };
 
-$('netBtn').onclick=()=>{
-view='net';
-setButtons(['grossBtn','netBtn'],'netBtn');
-renderCurrent();
+$("netBtn").onclick = () => {
+  view = "net";
+  setButtons(
+    ["grossBtn", "netBtn"],
+    "netBtn"
+  );
+  renderCurrentScores();
 };
 
-$('seasonGross').onclick=()=>{
-seasonView='gross';
-setButtons(['seasonGross','seasonNet'],'seasonGross');
-renderSeason();
+$("seasonGross").onclick = () => {
+  seasonView = "gross";
+  setButtons(
+    ["seasonGross", "seasonNet"],
+    "seasonGross"
+  );
+  renderSeason();
 };
 
-$('seasonNet').onclick=()=>{
-seasonView='net';
-setButtons(['seasonGross','seasonNet'],'seasonNet');
-renderSeason();
+$("seasonNet").onclick = () => {
+  seasonView = "net";
+  setButtons(
+    ["seasonGross", "seasonNet"],
+    "seasonNet"
+  );
+  renderSeason();
 };
 
-$('archiveIndividual').onclick=()=>{
-archiveCategory='individual';
-setButtons(
-['archiveIndividual','archiveTeams'],
-'archiveIndividual'
-);
-renderArchive();
+$("archiveIndividual").onclick = () => {
+  archiveCategory = "individual";
+  setButtons(
+    ["archiveIndividual", "archiveTeams"],
+    "archiveIndividual"
+  );
+  renderArchive();
 };
 
-$('archiveTeams').onclick=()=>{
-archiveCategory='teams';
-setButtons(
-['archiveIndividual','archiveTeams'],
-'archiveTeams'
-);
-renderArchive();
+$("archiveTeams").onclick = () => {
+  archiveCategory = "teams";
+  setButtons(
+    ["archiveIndividual", "archiveTeams"],
+    "archiveTeams"
+  );
+  renderArchive();
 };
 
-$('archiveGross').onclick=()=>{
-archiveView='gross';
-setButtons(
-['archiveGross','archiveNet'],
-'archiveGross'
-);
-renderArchive();
+$("archiveGross").onclick = () => {
+  archiveView = "gross";
+  setButtons(
+    ["archiveGross", "archiveNet"],
+    "archiveGross"
+  );
+  renderArchive();
 };
 
-$('archiveNet').onclick=()=>{
-archiveView='net';
-setButtons(
-['archiveGross','archiveNet'],
-'archiveNet'
-);
-renderArchive();
+$("archiveNet").onclick = () => {
+  archiveView = "net";
+  setButtons(
+    ["archiveGross", "archiveNet"],
+    "archiveNet"
+  );
+  renderArchive();
 };
 
-$('archiveWeek').onchange=e=>{
-archiveWeek=Number(e.target.value);
-renderArchive();
+$("archiveWeek").onchange = event => {
+  archiveWeek = Number(event.target.value);
+  renderArchive();
 };
 
-(async()=>{
-try{
-if(typeof loadSGLStandings!=='function'){
-throw Error('standings.js did not load.');
-}
+// Display the current leaderboard as soon as it arrives.
+window.addEventListener(
+  "sgl-current-ready",
+  event => {
+    if (leagueFullyLoaded) return;
 
-db=await loadSGLStandings();
+    const data = event.detail;
 
-const unfinished=db.weeks
-.filter(w=>!w.finalized)
-.sort((a,b)=>a.week_number-b.week_number);
+    currentWeek = Number(data.currentWeek);
 
-currentWeek=unfinished[0]?.week_number??
-(Math.max(0,...db.weeks.map(w=>w.week_number))+1);
+    db = {
+      players: [],
+      teams: [],
+      weeks: data.weeks,
+      scores: data.scores
+    };
 
-console.log(
-'Taylorville SGL current week:',
-currentWeek
-);
+    renderCurrentScores();
 
-console.log(
-'Current week scores:',
-db.scores.filter(s=>
-Number(s.week_number)===Number(currentWeek)
-)
-);
-
-renderAll();
-
-$('loadStatus').textContent=
-`League data loaded · ${db.players.length} golfers · ${completeWeeks().length} completed weeks`;
-
-}catch(err){
-console.error(
-'Taylorville SGL standings error:',
-err
+    $("loadStatus").textContent =
+      "Current standings loaded. Loading season data…";
+  }
 );
 
-$('loadStatus').className='error';
-$('loadStatus').textContent=
-'Standings could not load: '+err.message;
+// Full data arrives afterward.
+window.addEventListener(
+  "sgl-standings-loaded",
+  event => {
+    db = event.detail;
+    leagueFullyLoaded = true;
 
-for(const id of [
-'board',
-'weeklyTeams',
-'seasonPlayers',
-'seasonTeams',
-'archiveBody'
-]){
-$(id).innerHTML=
-'<tr><td class="empty">Unable to load standings. Please refresh later.</td></tr>';
-}
-}
+    const unfinished = db.weeks
+      .filter(w => !w.finalized)
+      .sort((a, b) =>
+        Number(a.week_number) -
+        Number(b.week_number)
+      );
+
+    currentWeek = Number(
+      unfinished[0]?.week_number ??
+      (Math.max(
+        0,
+        ...db.weeks.map(w => Number(w.week_number))
+      ) + 1)
+    );
+
+    renderAll();
+
+    $("loadStatus").textContent =
+      `League data loaded · ${db.players.length} golfers`;
+  }
+);
+
+// Update all standings when new scores arrive.
+window.addEventListener(
+  "sgl-standings-refreshed",
+  event => {
+    db = {
+      players: event.detail.players,
+      teams: event.detail.teams,
+      weeks: event.detail.weeks,
+      scores: event.detail.scores
+    };
+
+    currentWeek = Number(
+      event.detail.currentWeek
+    );
+
+    leagueFullyLoaded = true;
+
+    renderAll();
+  }
+);
+
+// Start loading.
+(async () => {
+  try {
+    if (
+      typeof loadSGLStandings !== "function"
+    ) {
+      throw new Error(
+        "standings.js did not load."
+      );
+    }
+
+    await loadSGLStandings();
+
+  } catch (error) {
+    console.error(
+      "Taylorville SGL standings error:",
+      error
+    );
+
+    $("loadStatus").style.display = "block";
+    $("loadStatus").className = "error";
+
+    $("loadStatus").textContent =
+      "Standings could not load: " +
+      error.message;
+
+    if (!leagueFullyLoaded && !db) {
+      $("board").innerHTML =
+        `<tr><td colspan="4" class="empty">
+Unable to load standings.
+</td></tr>`;
+    }
+  }
 })();
 
-const PAR3_CONFIG={
-url:'https://xgjziyopzeeneccfaszb.supabase.co',
-key:'sb_publishable_7ttHIcbCVOCv1rJlWpq0AA_59y0Tw7O'
+// Automatically check for updated scores every minute.
+setInterval(() => {
+  if (
+    document.visibilityState === "visible" &&
+    typeof refreshSGLStandings === "function"
+  ) {
+    refreshSGLStandings();
+  }
+}, 60000);
+
+// Also refresh when returning to the website.
+let sglLastRefresh = Date.now();
+
+document.addEventListener(
+  "visibilitychange",
+  () => {
+    if (
+      document.visibilityState === "visible" &&
+      Date.now() - sglLastRefresh > 60000 &&
+      typeof refreshSGLStandings === "function"
+    ) {
+      sglLastRefresh = Date.now();
+      refreshSGLStandings();
+    }
+  }
+);
+
+// Par 3 Challenge
+const PAR3_CONFIG = {
+  url: "https://xgjziyopzeeneccfaszb.supabase.co",
+  key: "sb_publishable_7ttHIcbCVOCv1rJlWpq0AA_59y0Tw7O"
 };
 
-let par3Shots=[];
-let par3Mode='weekly';
-let par3SelectedWeek=4;
-let par3Loaded=false;
-let par3Error='';
+let par3Shots = [];
+let par3Mode = "weekly";
+let par3SelectedWeek = 4;
+let par3Loaded = false;
+let par3Error = "";
 
-async function par3Fetch(table,select){
-const response=await fetch(
-`${PAR3_CONFIG.url}/rest/v1/${table}?select=${encodeURIComponent(select)}&limit=10000`,
-{
-headers:{
-apikey:PAR3_CONFIG.key,
-Accept:'application/json'
-},
-cache:'no-store'
-}
-);
+async function par3Fetch(table, select) {
+  const response = await fetch(
+    `${PAR3_CONFIG.url}/rest/v1/${table}?select=${encodeURIComponent(select)}&limit=10000`,
+    {
+      headers: {
+        apikey: PAR3_CONFIG.key,
+        Accept: "application/json"
+      },
+      cache: "no-store"
+    }
+  );
 
-if(!response.ok){
-throw Error(
-`Supabase returned ${response.status} for ${table}`
-);
-}
+  if (!response.ok) {
+    throw new Error(
+      `Supabase returned ${response.status} for ${table}`
+    );
+  }
 
-return response.json();
-}
-
-function par3Normalize(name){
-return String(name||'')
-.replace(/\s+/g,'')
-.toLowerCase();
+  return response.json();
 }
 
-function par3Better(a,b){
-return a.distance_ft<b.distance_ft||
-(a.distance_ft===b.distance_ft&&
-(a.week_number<b.week_number||
-(a.week_number===b.week_number&&
-(a.hole_number<b.hole_number||
-(a.hole_number===b.hole_number&&
-a.tournament_id<b.tournament_id)))));
+function par3Normalize(name) {
+  return String(name || "")
+    .replace(/\s+/g, "")
+    .toLowerCase();
 }
 
-function par3BestShots(shots){
-const best=new Map();
-
-for(const shot of shots){
-const key=par3Normalize(shot.username);
-if(!key)continue;
-
-const prev=best.get(key);
-
-if(!prev||par3Better(shot,prev)){
-best.set(key,shot);
-}
-}
-
-return [...best.values()].sort((a,b)=>
-a.distance_ft-b.distance_ft||
-a.username.localeCompare(b.username)
-);
-}
-
-function par3Render(){
-const weekly=par3Mode==='weekly';
-
-setButtons(
-['par3WeeklyBtn','par3SeasonBtn'],
-weekly?'par3WeeklyBtn':'par3SeasonBtn'
-);
-
-$('par3Week').style.display=weekly?'':'none';
-
-$('par3Head').innerHTML=weekly?
-'<tr><th>POS</th><th>PLAYER</th><th>HOLE</th><th>DISTANCE</th></tr>':
-'<tr><th>POS</th><th>PLAYER</th><th>WEEK</th><th>HOLE</th><th>DISTANCE</th></tr>';
-
-$('par3Footnote').textContent=weekly?
-`Week ${par3SelectedWeek}: each player's closest shot from either tournament counts. Equal distances share rank.`:
-'Season rankings use each golfer’s single closest shot across all weeks. Equal distances share rank.';
-
-const cols=weekly?4:5;
-
-if(par3Error){
-$('par3Status').textContent=
-'Unable to load Par 3 results.';
-
-$('par3Body').innerHTML=
-`<tr><td colspan="${cols}" class="empty error">${esc(par3Error)}</td></tr>`;
-return;
+function par3Better(a, b) {
+  return a.distance_ft < b.distance_ft ||
+    (
+      a.distance_ft === b.distance_ft &&
+      (
+        a.week_number < b.week_number ||
+        (
+          a.week_number === b.week_number &&
+          (
+            a.hole_number < b.hole_number ||
+            (
+              a.hole_number === b.hole_number &&
+              a.tournament_id < b.tournament_id
+            )
+          )
+        )
+      )
+    );
 }
 
-if(!par3Loaded){
-$('par3Body').innerHTML=
-`<tr><td colspan="${cols}" class="empty">Loading Par 3 results…</td></tr>`;
-return;
+function par3BestShots(shots) {
+  const best = new Map();
+
+  for (const shot of shots) {
+    const key = par3Normalize(shot.username);
+    if (!key) continue;
+
+    const previous = best.get(key);
+
+    if (!previous || par3Better(shot, previous)) {
+      best.set(key, shot);
+    }
+  }
+
+  return [...best.values()].sort((a, b) =>
+    a.distance_ft - b.distance_ft ||
+    a.username.localeCompare(b.username)
+  );
 }
 
-const relevant=weekly?
-par3Shots.filter(s=>
-s.week_number===par3SelectedWeek
-):
-par3Shots;
+function par3Render() {
+  const weekly = par3Mode === "weekly";
 
-const ranked=par3BestShots(relevant);
+  setButtons(
+    ["par3WeeklyBtn", "par3SeasonBtn"],
+    weekly ? "par3WeeklyBtn" : "par3SeasonBtn"
+  );
 
-$('par3Status').textContent=weekly?
-`Week ${par3SelectedWeek} · ${ranked.length} golfers with recorded shots`:
-`Season · ${ranked.length} golfers with recorded shots`;
+  $("par3Week").style.display =
+    weekly ? "" : "none";
 
-if(!ranked.length){
-$('par3Body').innerHTML=
-`<tr><td colspan="${cols}" class="empty">No closest-to-pin shots recorded for this ${weekly?'week':'season'} yet.</td></tr>`;
-return;
-}
+  $("par3Head").innerHTML = weekly
+    ? `<tr>
+<th>POS</th><th>PLAYER</th>
+<th>HOLE</th><th>DISTANCE</th>
+</tr>`
+    : `<tr>
+<th>POS</th><th>PLAYER</th>
+<th>WEEK</th><th>HOLE</th>
+<th>DISTANCE</th>
+</tr>`;
 
-$('par3Body').innerHTML=rowsWithRanks(
-ranked,
-'distance_ft',
-(shot,rank)=>`
-<tr class="${rank===1?'par3-top':''}">
+  $("par3Footnote").textContent = weekly
+    ? `Week ${par3SelectedWeek}: each player's closest shot from either tournament counts. Equal distances share rank.`
+    : "Season rankings use each golfer’s single closest shot across all weeks. Equal distances share rank.";
+
+  const cols = weekly ? 4 : 5;
+
+  if (par3Error) {
+    $("par3Status").textContent =
+      "Unable to load Par 3 results.";
+
+    $("par3Body").innerHTML =
+      `<tr><td colspan="${cols}" class="empty error">
+${esc(par3Error)}
+</td></tr>`;
+    return;
+  }
+
+  if (!par3Loaded) {
+    $("par3Body").innerHTML =
+      `<tr><td colspan="${cols}" class="empty">
+Loading Par 3 results…
+</td></tr>`;
+    return;
+  }
+
+  const relevant = weekly
+    ? par3Shots.filter(s =>
+        s.week_number === par3SelectedWeek
+      )
+    : par3Shots;
+
+  const ranked = par3BestShots(relevant);
+
+  $("par3Status").textContent = weekly
+    ? `Week ${par3SelectedWeek} · ${ranked.length} golfers with recorded shots`
+    : `Season · ${ranked.length} golfers with recorded shots`;
+
+  if (!ranked.length) {
+    $("par3Body").innerHTML =
+      `<tr><td colspan="${cols}" class="empty">
+No closest-to-pin shots recorded for this ${
+  weekly ? "week" : "season"
+} yet.
+</td></tr>`;
+    return;
+  }
+
+  $("par3Body").innerHTML = rowsWithRanks(
+    ranked,
+    "distance_ft",
+    (shot, rank) => `
+<tr class="${rank === 1 ? "par3-top" : ""}">
 <td class="tag">${rank}</td>
 <td>${esc(shot.username)}</td>
-${weekly?'':`<td>Week ${shot.week_number}</td>`}
+${weekly ? "" : `<td>Week ${shot.week_number}</td>`}
 <td>${shot.hole_number}</td>
 <td class="par3-distance">${shot.distance_ft.toFixed(2)} ft</td>
 </tr>`
-);
+  );
 }
 
-function par3SetWeeks(weeks){
-const numbers=[...new Set(
-weeks.map(w=>Number(w.week_number))
-.filter(n=>Number.isInteger(n)&&n>0)
-)].sort((a,b)=>a-b);
+function par3SetWeeks(weeks) {
+  const numbers = [...new Set(
+    weeks
+      .map(w => Number(w.week_number))
+      .filter(n => Number.isInteger(n) && n > 0)
+  )].sort((a, b) => a - b);
 
-const available=new Set(
-par3Shots.map(s=>s.week_number)
-);
+  const available = new Set(
+    par3Shots.map(s => s.week_number)
+  );
 
-if(!numbers.length){
-numbers.push(
-...[...available].sort((a,b)=>a-b)
-);
+  if (!numbers.length) {
+    numbers.push(
+      ...[...available].sort((a, b) => a - b)
+    );
+  }
+
+  const latestWithShots = numbers
+    .filter(n => available.has(n))
+    .at(-1);
+
+  par3SelectedWeek =
+    numbers.includes(currentWeek) &&
+    available.has(currentWeek)
+      ? currentWeek
+      : latestWithShots ??
+        (
+          numbers.includes(currentWeek)
+            ? currentWeek
+            : numbers.at(-1) ?? 4
+        );
+
+  $("par3Week").innerHTML =
+    numbers.map(n => `
+<option value="${n}">
+Week ${n}${available.has(n) ? " · Results" : ""}
+</option>`).join("");
+
+  $("par3Week").value =
+    String(par3SelectedWeek);
 }
 
-const latestWithShots=numbers
-.filter(n=>available.has(n))
-.at(-1);
-
-par3SelectedWeek=
-numbers.includes(currentWeek)&&available.has(currentWeek)?
-currentWeek:
-latestWithShots??
-(numbers.includes(currentWeek)?
-currentWeek:
-numbers.at(-1)??4);
-
-$('par3Week').innerHTML=numbers.map(n=>
-`<option value="${n}">Week ${n}${available.has(n)?' · Results':''}</option>`
-).join('');
-
-$('par3Week').value=String(par3SelectedWeek);
-}
-
-$('par3WeeklyBtn').onclick=()=>{
-par3Mode='weekly';
-par3Render();
+$("par3WeeklyBtn").onclick = () => {
+  par3Mode = "weekly";
+  par3Render();
 };
 
-$('par3SeasonBtn').onclick=()=>{
-par3Mode='season';
-par3Render();
+$("par3SeasonBtn").onclick = () => {
+  par3Mode = "season";
+  par3Render();
 };
 
-$('par3Week').onchange=e=>{
-par3SelectedWeek=Number(e.target.value);
-par3Render();
+$("par3Week").onchange = event => {
+  par3SelectedWeek = Number(event.target.value);
+  par3Render();
 };
 
-(async()=>{
-try{
-const [shots,weeks]=await Promise.all([
-par3Fetch(
-'sgl_par3_shots',
-'week_number,tournament_id,username,hole_number,distance_ft'
-),
-par3Fetch(
-'sgl_weeks',
-'week_number'
-)
-]);
+async function loadPar3() {
+  try {
+    const [shots, weeks] = await Promise.all([
+      par3Fetch(
+        "sgl_par3_shots",
+        "week_number,tournament_id,username,hole_number,distance_ft"
+      ),
+      par3Fetch(
+        "sgl_weeks",
+        "week_number"
+      )
+    ]);
 
-par3Shots=shots.map(s=>({
-week_number:Number(s.week_number),
-tournament_id:Number(s.tournament_id),
-username:String(s.username||''),
-hole_number:Number(s.hole_number),
-distance_ft:Number(s.distance_ft)
-})).filter(s=>
-Number.isInteger(s.week_number)&&
-Number.isInteger(s.hole_number)&&
-s.hole_number>=1&&
-s.hole_number<=18&&
-Number.isFinite(s.distance_ft)&&
-s.distance_ft>=0&&
-s.username
-);
+    par3Shots = shots.map(s => ({
+      week_number: Number(s.week_number),
+      tournament_id: Number(s.tournament_id),
+      username: String(s.username || ""),
+      hole_number: Number(s.hole_number),
+      distance_ft: Number(s.distance_ft)
+    })).filter(s =>
+      Number.isInteger(s.week_number) &&
+      Number.isInteger(s.hole_number) &&
+      s.hole_number >= 1 &&
+      s.hole_number <= 18 &&
+      Number.isFinite(s.distance_ft) &&
+      s.distance_ft >= 0 &&
+      s.username
+    );
 
-par3SetWeeks(weeks);
-par3Loaded=true;
-par3Render();
+    par3SetWeeks(weeks);
 
-}catch(err){
-console.error(
-'Par 3 leaderboard error:',
-err
-);
+    par3Loaded = true;
+    par3Error = "";
 
-par3Error=err.message;
-par3Render();
+    par3Render();
+
+  } catch (error) {
+    console.error(
+      "Par 3 leaderboard error:",
+      error
+    );
+
+    par3Error = error.message;
+    par3Render();
+  }
 }
-})();
+
+// Par 3 loads independently of combined standings.
+loadPar3();
+
 </script>
 </body>
 </html>
