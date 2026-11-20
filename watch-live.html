@@ -74,6 +74,38 @@ p {
   line-height: 1.6;
 }
 
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 16px;
+  border-radius: 30px;
+  font-size: 13px;
+  font-weight: 800;
+  margin: 10px 0;
+  border: 1px solid #9f884d;
+  background: #123723;
+  color: #f1d28a;
+}
+
+.status.live {
+  background: #601a1a;
+  border-color: #ff5555;
+  color: #fff;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  background: #d8b65f;
+  border-radius: 50%;
+}
+
+.status.live .dot {
+  background: #ff4545;
+  box-shadow: 0 0 10px #ff4545;
+}
+
 .player {
   position: relative;
   width: 100%;
@@ -85,11 +117,40 @@ p {
 }
 
 .player iframe {
-  position: absolute;
-  inset: 0;
   width: 100%;
   height: 100%;
   border: 0;
+}
+
+.offline {
+  width: 100%;
+  min-height: 260px;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #06180e, #12442a);
+  border: 1px solid #a48b4c;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 25px;
+  margin-top: 20px;
+}
+
+.offline-icon {
+  font-size: 45px;
+  margin-bottom: 12px;
+}
+
+.offline h2 {
+  font-family: Georgia, serif;
+  font-size: 28px;
+  margin: 5px 0;
+}
+
+.offline p {
+  max-width: 430px;
 }
 
 .btn {
@@ -123,6 +184,10 @@ footer {
   color: #b5c3ad;
   font-size: 12px;
 }
+
+[hidden] {
+  display: none !important;
+}
 </style>
 </head>
 
@@ -132,50 +197,128 @@ footer {
   <div class="brand">
     TAYLORVILLE <span>SGL</span>
   </div>
-  <div class="subtitle">SIMULATOR GOLF LEAGUE</div>
+  <div class="subtitle">
+    SIMULATOR GOLF LEAGUE
+  </div>
 </header>
 
 <main>
-  <section class="panel">
-    <div class="eyebrow">TGSL LIVE BROADCAST</div>
-    <h1>Watch Live Golf</h1>
+<section class="panel">
 
+  <div class="eyebrow">
+    TGSL LIVE BROADCAST
+  </div>
+
+  <h1>Watch Live Golf</h1>
+
+  <p>
+    Watch Taylorville Simulator Golf League
+    matches, tournaments, and practice
+    sessions directly from our simulator.
+  </p>
+
+  <div id="streamStatus" class="status">
+    <span class="dot"></span>
+    <span id="statusText">STREAM OFFLINE</span>
+  </div>
+
+  <div id="offlineDisplay" class="offline">
+    <div class="offline-icon">⛳</div>
+    <h2>We're Currently Offline</h2>
     <p>
-      Watch Taylorville Simulator Golf League matches,
-      tournaments, and practice sessions live.
+      The simulator isn't broadcasting right now.
+      Check back during our next golf session
+      to watch live.
     </p>
+  </div>
 
-    <div class="player">
-      <iframe
-        src="https://www.youtube.com/embed/live_stream?channel=CHANNEL_ID"
-        title="Taylorville SGL Live Golf"
-        allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share"
-        allowfullscreen>
-      </iframe>
-    </div>
+  <div id="liveDisplay" class="player" hidden>
+    <iframe
+      id="youtubePlayer"
+      title="Taylorville SGL Live Golf"
+      allow="autoplay; encrypted-media; picture-in-picture; web-share"
+      allowfullscreen>
+    </iframe>
+  </div>
 
-    <p class="notice">
-      If the stream is unavailable, we may not be
-      broadcasting right now. Check back when the
-      simulator is live.
-    </p>
+  <p class="notice" id="liveNotice" hidden>
+    You're watching Taylorville SGL live.
+    Enjoy the round!
+  </p>
 
-    <a class="btn"
-       href="https://www.youtube.com/@tgsltaylorvillesimulatorgolfle"
-       target="_blank"
-       rel="noopener noreferrer">
-      Visit TGSL YouTube Channel
-    </a>
+  <a class="btn"
+     href="https://www.youtube.com/@tgsltaylorvillesimulatorgolfle/live"
+     target="_blank"
+     rel="noopener noreferrer">
+    Watch on YouTube
+  </a>
 
-    <a class="btn secondary" href="index.html">
-      Return to League Standings
-    </a>
-  </section>
+  <a class="btn secondary"
+     href="https://www.youtube.com/@tgsltaylorvillesimulatorgolfle"
+     target="_blank"
+     rel="noopener noreferrer">
+    Visit TGSL YouTube Channel
+  </a>
+
+  <a class="btn secondary" href="index.html">
+    Return to League Standings
+  </a>
+
+</section>
 </main>
 
 <footer>
   © Taylorville SGL · Simulator Golf League
 </footer>
+
+<script>
+"use strict";
+
+const CHANNEL_ID = "UC-WJOLQudbw8xO7WclLjd2Q";
+
+/*
+  Set to true when broadcasting.
+  Set to false when offline.
+
+  This is a temporary manual setting.
+  Automatic live detection can be added later.
+*/
+const STREAM_LIVE = false;
+
+function updateStream() {
+  const status = document.getElementById("streamStatus");
+  const statusText = document.getElementById("statusText");
+  const offline = document.getElementById("offlineDisplay");
+  const live = document.getElementById("liveDisplay");
+  const notice = document.getElementById("liveNotice");
+  const player = document.getElementById("youtubePlayer");
+
+  if (STREAM_LIVE) {
+    status.classList.add("live");
+    statusText.textContent = "LIVE NOW";
+
+    offline.hidden = true;
+    live.hidden = false;
+    notice.hidden = false;
+
+    player.src =
+      "https://www.youtube.com/embed/live_stream?channel=" +
+      encodeURIComponent(CHANNEL_ID) +
+      "&autoplay=0";
+  } else {
+    status.classList.remove("live");
+    statusText.textContent = "STREAM OFFLINE";
+
+    offline.hidden = false;
+    live.hidden = true;
+    notice.hidden = true;
+
+    player.removeAttribute("src");
+  }
+}
+
+updateStream();
+</script>
 
 </body>
 </html>
