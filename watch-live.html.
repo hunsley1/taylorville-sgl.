@@ -1,0 +1,362 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#092316">
+
+<title>Watch Live | Taylorville SGL</title>
+
+<style>
+:root {
+  font-family: Inter, system-ui, -apple-system,
+    Segoe UI, sans-serif;
+  color: #f8f6ed;
+  background: #07180f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: linear-gradient(
+    180deg,
+    #07180f,
+    #103b22 55%,
+    #06190e
+  );
+}
+
+a {
+  color: #f1c763;
+}
+
+.wrap {
+  max-width: 1100px;
+  margin: auto;
+  padding: 0 20px;
+}
+
+header {
+  text-align: center;
+  padding: 35px 0;
+  border-bottom: 1px solid #c6a65c66;
+}
+
+.crest {
+  font-size: 30px;
+  color: #f4c95f;
+}
+
+.brand {
+  font-family: Georgia, serif;
+  font-size: clamp(28px, 5vw, 50px);
+  font-weight: 800;
+}
+
+.brand span {
+  color: #f0c65f;
+}
+
+.subtitle {
+  color: #f4e9c9;
+  font-size: 11px;
+  letter-spacing: .25em;
+  margin-top: 8px;
+}
+
+main {
+  padding-top: 30px;
+  padding-bottom: 50px;
+}
+
+.panel {
+  background: linear-gradient(
+    135deg,
+    rgba(7,48,25,.96),
+    rgba(2,25,14,.96)
+  );
+  border: 1.5px solid #b9a05c;
+  border-radius: 17px;
+  padding: 25px;
+  box-shadow: 0 10px 32px #0005;
+}
+
+.eyebrow {
+  color: #f0c65f;
+  letter-spacing: .19em;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+h1 {
+  font-family: Georgia, serif;
+  font-style: italic;
+  font-size: clamp(28px, 4vw, 40px);
+  margin: 10px 0 20px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  border: 1px solid #d6b45e;
+  border-radius: 99px;
+  color: #f3cb66;
+  padding: 9px 13px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.video-box {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #020c07;
+  border: 1px solid #46674c;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-top: 20px;
+}
+
+.video-box iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.offline {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 20px;
+}
+
+.offline-icon {
+  font-size: 45px;
+  margin-bottom: 15px;
+}
+
+.offline h2 {
+  font-family: Georgia, serif;
+  font-size: 27px;
+  margin: 0 0 10px;
+}
+
+.muted {
+  color: #c5cfbe;
+  line-height: 1.6;
+}
+
+.btn {
+  display: inline-block;
+  background: linear-gradient(
+    135deg,
+    #f8d87d,
+    #d6a83f
+  );
+  color: #17170b;
+  padding: 13px 20px;
+  border-radius: 10px;
+  font-weight: 800;
+  text-decoration: none;
+  margin-top: 18px;
+}
+
+.btn.secondary {
+  background: #123723;
+  color: #f1d28a;
+  border: 1px solid #9f884d;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+footer {
+  text-align: center;
+  padding: 35px 15px;
+  color: #b5c3ad;
+  font-size: 12px;
+}
+
+@media(max-width:700px) {
+  .wrap {
+    padding: 0 14px;
+  }
+
+  .panel {
+    padding: 18px 13px;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+
+  .btn {
+    text-align: center;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="crest">❧ ⚑ ❧</div>
+    <div class="brand">
+      TAYLORVILLE <span>SGL</span>
+    </div>
+    <div class="subtitle">
+      SIMULATOR GOLF LEAGUE
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section class="panel">
+
+  <div class="row">
+    <div>
+      <div class="eyebrow">
+        TGSL LIVE BROADCAST
+      </div>
+      <h1>Watch Live Golf</h1>
+    </div>
+
+    <span class="pill" id="liveStatus">
+      OFFLINE
+    </span>
+  </div>
+
+  <p class="muted">
+    Watch Taylorville Simulator Golf League
+    matches, tournaments, and practice
+    sessions live from our golf simulator.
+  </p>
+
+  <div class="video-box" id="videoBox">
+
+    <div class="offline" id="offlineMessage">
+      <div class="offline-icon">⛳</div>
+
+      <h2>Currently Offline</h2>
+
+      <p class="muted">
+        No livestream is currently configured.
+        Check back for our next broadcast.
+      </p>
+    </div>
+
+  </div>
+
+  <div class="actions">
+
+    <a class="btn"
+       href="https://www.youtube.com/@tgsltaylorvillesimulatorgolfle"
+       target="_blank"
+       rel="noopener noreferrer">
+      Visit TGSL YouTube Channel
+    </a>
+
+    <a class="btn secondary"
+       href="index.html">
+      Back to League Standings
+    </a>
+
+  </div>
+
+</section>
+
+</main>
+
+<footer>
+  Taylorville SGL · Independent Simulator Golf League
+</footer>
+
+<script>
+"use strict";
+
+/*
+  TGSL LIVESTREAM CONFIGURATION
+
+  Once YouTube livestreaming is enabled,
+  replace the empty videoId with the
+  YouTube livestream video ID.
+
+  Example:
+  videoId: "YOUR_VIDEO_ID"
+
+  Leave it empty until a stream is ready.
+*/
+
+const TGSL_LIVE = {
+  videoId: ""
+};
+
+function initializeLivestream() {
+
+  const videoBox =
+    document.getElementById("videoBox");
+
+  const status =
+    document.getElementById("liveStatus");
+
+  const videoId = TGSL_LIVE.videoId.trim();
+
+  if (!videoId) {
+    status.textContent = "OFFLINE";
+    return;
+  }
+
+  if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) {
+    status.textContent = "UNAVAILABLE";
+    return;
+  }
+
+  const iframe = document.createElement("iframe");
+
+  iframe.src =
+    "https://www.youtube-nocookie.com/embed/" +
+    encodeURIComponent(videoId);
+
+  iframe.title = "TGSL Golf Livestream";
+  iframe.allow =
+    "accelerometer; autoplay; clipboard-write; " +
+    "encrypted-media; gyroscope; picture-in-picture; " +
+    "web-share";
+
+  iframe.allowFullscreen = true;
+  iframe.referrerPolicy =
+    "strict-origin-when-cross-origin";
+
+  videoBox.innerHTML = "";
+  videoBox.appendChild(iframe);
+
+  // A configured video is not necessarily live.
+  status.textContent = "WATCH BROADCAST";
+}
+
+initializeLivestream();
+</script>
+
+</body>
+</html>
