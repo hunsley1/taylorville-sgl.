@@ -12,66 +12,63 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Inspect SGT scorecard JavaScript
+      - name: Find scorecard API endpoint
         run: |
           python3 - <<'PY'
           import re
           import urllib.request
 
-          url = (
+          URL = (
               "https://sgt-static.b-cdn.net"
               "/public/scorecard/page.js?v=2.0.26"
           )
 
-          request = urllib.request.Request(
-              url,
+          req = urllib.request.Request(
+              URL,
               headers={
-                  "User-Agent": "Mozilla/5.0",
-                  "Accept": "*/*",
-                  "Referer": "https://simulatorgolftour.com/"
+                  "User-Agent": "Mozilla/5.0"
               }
           )
 
           with urllib.request.urlopen(
-              request, timeout=40
+              req, timeout=40
           ) as response:
               js = response.read().decode(
                   "utf-8", "replace"
               )
 
-          print("=== SCORECARD JAVASCRIPT ===")
-          print("JavaScript length:", len(js))
-
-          print("\n=== API AND SCORECARD REFERENCES ===")
+          print("=== FIND FETCH_DATA FUNCTION ===")
 
           patterns = [
-              "sgt-api",
-              "fetch(",
-              "XMLHttpRequest",
-              "gross",
-              "holeScores",
-              "scorecard"
+              r"function\s+Fetch_Data\s*\(",
+              r"Fetch_Data\s*=\s*function",
+              r"APIBASE",
+              r"apiHandler\.Send_Request",
+              r"function\s+Setup_Scorecard"
           ]
 
           for pattern in patterns:
-              print("\nSEARCH:", pattern)
+              matches = list(
+                  re.finditer(pattern, js, re.I)
+              )
 
-              matches = list(re.finditer(
-                  re.escape(pattern),
-                  js,
-                  re.IGNORECASE
-              ))
+              print(
+                  "\nPATTERN:", pattern,
+                  "MATCHES:", len(matches)
+              )
 
-              print("Matches:", len(matches))
-
-              for match in matches[:8]:
-                  start = max(0, match.start() - 180)
-                  end = min(len(js), match.end() + 250)
-
-                  print(
-                      js[start:end].replace("\n", " ")
+              for match in matches[:5]:
+                  start = max(0, match.start() - 150)
+                  end = min(
+                      len(js),
+                      match.end() + (
+                          4500 if "Fetch_Data" in pattern
+                          else 650
+                      )
                   )
-                  print("---")
+
+                  print(js[start:end])
+                  print("\n--- END MATCH ---")
 
           print("\n=== TEST COMPLETE ===")
           PY
