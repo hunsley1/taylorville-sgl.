@@ -15,103 +15,165 @@ jobs:
       - name: Install HTML parser
         run: python3 -m pip install --quiet beautifulsoup4
 
-      - name: Find player scorecard IDs
+      - name: Verify all Week 4 gross scorecards
         run: |
           python3 - <<'PY'
           import re
           import urllib.request
           from bs4 import BeautifulSoup
 
+          BASE = "https://simulatorgolftour.com"
           tournaments = ["83765", "83767"]
 
+          def fetch(path):
+              req = urllib.request.Request(
+                  BASE + path,
+                  headers={
+                      "User-Agent": "Mozilla/5.0",
+                      "Accept": "text/html,*/*",
+                      "Referer": BASE + "/"
+                  }
+              )
+              with urllib.request.urlopen(
+                  req, timeout=40
+              ) as response:
+                  return BeautifulSoup(
+                      response.read(),
+                      "html.parser"
+                  )
+
+          total = 0
+          failures = []
+
           for tid in tournaments:
-              url = (
-                  "https://simulatorgolftour.com"
+              print(f"\n=== TOURNAMENT {tid} ===")
+
+              leaderboard = fetch(
                   f"/sgt-api/leaderboard/{tid}"
               )
 
-              print(
-                  f"\n=== TOURNAMENT {tid} ===",
-                  flush=True
+              rows = leaderboard.select(
+                  "tr.finished-card"
               )
 
-              try:
-                  request = urllib.request.Request(
-                      url,
-                      headers={
-                          "User-Agent": "Mozilla/5.0",
-                          "Accept": "text/html,*/*",
-                          "Referer": "https://simulatorgolftour.com/"
-                      }
+              for row in rows:
+                  name = row.get(
+                      "data-player-name", ""
                   )
 
-                  with urllib.request.urlopen(
-                      request, timeout=40
-                  ) as response:
-                      html = response.read().decode(
-                          "utf-8", "replace"
+                  link = row.select_one(
+                      f'a[href^="/scorecard/{tid}/"]'
+                  )
+
+                  try:
+                      if link is None:
+                          raise ValueError(
+                              "Missing scorecard link"
+                          )
+
+                      href = link["href"]
+                      match = re.fullmatch(
+                          rf"/scorecard/{tid}/(\d+)/?",
+                          href
                       )
 
-                  soup = BeautifulSoup(
-                      html, "html.parser"
-                  )
+                      if not match:
+                          raise ValueError(
+                              f"Unexpected link: {href}"
+                          )
 
-                  rows = soup.select(
-                      "tr.finished-card"
-                  )
+                      pid = match.group(1)
 
-                  print(
-                      "Finished players:",
-                      len(rows)
-                  )
-
-                  for row in rows:
-                      name = row.get(
-                          "data-player-name", ""
+                      soup = fetch(
+                          f"/sgt-api/scorecard/"
+                          f"{tid}/{pid}/indv"
                       )
 
-                      print("\nPLAYER:", name)
+                      gross_row = None
+
+                      for tr in soup.select("tr"):
+                          cells = tr.find_all(
+                              ["th", "td"],
+                              recursive=False
+                          )
+
+                          if cells and (
+                              cells[0].get_text(
+                                  " ", strip=True
+                              ).upper() == "GROSS"
+                          ):
+                              gross_row = cells
+                              break
+
+                      if gross_row is None:
+                          raise ValueError(
+                              "GROSS row missing"
+                          )
+
+                      values = [
+                          c.get_text(" ", strip=True)
+                          for c in gross_row[1:]
+                      ]
+
+                      # Skip OUT, IN and TOT
+                      # columns after holes 9 and 18.
+                      if len(values) != 21:
+                          raise ValueError(
+                              f"Expected 21 score "
+                              f"columns, got {len(values)}"
+                          )
+
+                      indices = (
+                          list(range(9))
+                          + list(range(10, 19))
+                      )
+
+                      scores = [
+                          int(values[i])
+                          for i in indices
+                      ]
+
+                      if len(scores) != 18:
+                          raise ValueError(
+                              "Not 18 hole scores"
+                          )
+
+                      gross_total = int(values[20])
+
+                      if sum(scores) != gross_total:
+                          raise ValueError(
+                              "Gross total mismatch: "
+                              f"{sum(scores)} vs "
+                              f"{gross_total}"
+                          )
+
+                      total += 1
 
                       print(
-                          "ROW ATTRIBUTES:",
-                          dict(row.attrs)
+                          f"PASS {name}: "
+                          f"{scores} "
+                          f"TOTAL={gross_total}",
+                          flush=True
                       )
 
-                      links = row.select("a[href]")
-
-                      for link in links[:8]:
-                          print(
-                              "LINK:",
-                              link.get("href"),
-                              "TEXT:",
-                              link.get_text(
-                                  " ", strip=True
-                              )[:100]
-                          )
-
-                      ids = re.findall(
-                          r"(?:scorecard/|data-pid=)"
-                          r"[^<\s]{0,100}",
-                          str(row),
-                          re.I
+                  except Exception as exc:
+                      failures.append(
+                          f"{tid} {name}: {exc}"
+                      )
+                      print(
+                          f"FAIL {name}: {exc}",
+                          flush=True
                       )
 
-                      for value in ids[:5]:
-                          print(
-                              "SCORECARD REFERENCE:",
-                              value[:150]
-                          )
+          print("\n=== FINAL RESULT ===")
+          print("Verified scorecards:", total)
+          print("Failures:", len(failures))
 
-                  print(
-                      f"\n=== END TOURNAMENT {tid} ==="
-                  )
+          for failure in failures:
+              print("ERROR:", failure)
 
-              except Exception as error:
-                  print(
-                      "ERROR:",
-                      type(error).__name__,
-                      str(error)
-                  )
+          if failures:
+              raise SystemExit(1)
 
-          print("\n=== TEST COMPLETE ===")
+          print("ALL SCORECARDS VERIFIED")
           PY
