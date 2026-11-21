@@ -224,6 +224,59 @@ Visit TGSL YouTube Channel
 <p id="par3Footnote" class="season-note">Weekly rankings use each player's closest shot from either tournament.</p>
 </section>
 
+<!-- AUTOMATIC GROSS SKINS -->
+<section class="panel" id="skinsLeaderboard">
+<div class="row">
+<div>
+<div class="eyebrow">GROSS SKINS COMPETITION</div>
+<h2>Weekly &amp; Season Skins</h2>
+</div>
+<span class="pill">BOTH TOURNAMENTS COMBINED</span>
+</div>
+
+<p class="season-note">
+Gross skins are calculated automatically using completed rounds
+from both weekly SGT tournaments. A unique low score wins the
+hole and accumulated carryovers. Tied holes carry forward.
+</p>
+
+<div class="toolbar">
+<div class="tabs">
+<button id="skinsWeeklyBtn" class="active">Weekly</button>
+<button id="skinsSeasonBtn">Season</button>
+</div>
+<select id="skinsWeek" aria-label="Skins week">
+<option value="4">Week 4</option>
+</select>
+</div>
+
+<p id="skinsStatus" class="muted small" role="status">
+Loading gross skins…
+</p>
+
+<div style="overflow-x:auto">
+<table>
+<thead id="skinsHead">
+<tr>
+<th>HOLE</th>
+<th>WINNER</th>
+<th>GROSS</th>
+<th>SKINS</th>
+<th>STATUS</th>
+</tr>
+</thead>
+<tbody id="skinsBody">
+<tr>
+<td colspan="5" class="empty">Loading…</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<p id="skinsFootnote" class="season-note"></p>
+</section>
+<!-- END AUTOMATIC GROSS SKINS -->
+
 <section class="panel">
 <div class="row">
 <div>
