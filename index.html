@@ -289,6 +289,34 @@ hole and accumulated carryovers. Tied holes carry forward.
 Loading gross skins…
 </p>
 
+
+<div id="skinsWeeklySummary">
+  <h3>Weekly Skins Leaders</h3>
+  <p class="season-note">
+    Ranked by total gross skins won this week.
+    Results update as players finish.
+  </p>
+  <div style="overflow-x:auto">
+    <table>
+      <thead>
+        <tr>
+          <th>POS</th>
+          <th>PLAYER</th>
+          <th>HOLES WON</th>
+          <th>SKINS</th>
+        </tr>
+      </thead>
+      <tbody id="skinsWeeklyLeaders">
+        <tr>
+          <td colspan="4" class="empty">
+            Loading weekly leaders…
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
 <div style="overflow-x:auto">
 <table>
 <thead id="skinsHead">
@@ -1374,6 +1402,6 @@ async function loadPar3() {
 loadPar3();
 
 </script>
-<script src="skins.js?v=1"></script>
+<script src="skins.js?v=3"></script>
 </body>
 </html>

@@ -88,8 +88,87 @@
     }).join("");
   }
 
+
+  function renderWeeklyLeaders() {
+    const container = $("skinsWeeklySummary");
+    const body = $("skinsWeeklyLeaders");
+
+    if (!container || !body) return;
+
+    container.style.display =
+      mode === "weekly" ? "" : "none";
+
+    if (mode !== "weekly") return;
+
+    if (!loaded || error) {
+      body.innerHTML = `<tr>
+        <td colspan="4" class="empty">
+          ${escapeHTML(error || "Loading…")}
+        </td>
+      </tr>`;
+      return;
+    }
+
+    const totals = new Map();
+
+    for (const hole of holes) {
+      if (
+        hole.week_number !== selectedWeek ||
+        !hole.winner_username ||
+        hole.skins_awarded <= 0
+      ) continue;
+
+      const key = hole.winner_username
+        .trim()
+        .toLowerCase();
+
+      if (!totals.has(key)) {
+        totals.set(key, {
+          username: hole.winner_username,
+          holesWon: 0,
+          skins: 0
+        });
+      }
+
+      const player = totals.get(key);
+      player.holesWon++;
+      player.skins += hole.skins_awarded;
+    }
+
+    const ranked = [...totals.values()]
+      .sort((a, b) =>
+        b.skins - a.skins ||
+        a.username.localeCompare(b.username)
+      );
+
+    let previous = null;
+    let rank = 0;
+
+    body.innerHTML = ranked.length
+      ? ranked.map((player, index) => {
+          if (player.skins !== previous) {
+            rank = index + 1;
+          }
+
+          previous = player.skins;
+
+          return `<tr>
+            <td class="tag">${rank}</td>
+            <td>${escapeHTML(player.username)}</td>
+            <td>${player.holesWon}</td>
+            <td class="tag">${player.skins}</td>
+          </tr>`;
+        }).join("")
+      : `<tr>
+        <td colspan="4" class="empty">
+          No skins winners recorded yet.
+        </td>
+      </tr>`;
+  }
+
   function render() {
     setTabs();
+    renderWeeklyLeaders();
 
     const weekly = mode === "weekly";
     const week = weeks.find(
