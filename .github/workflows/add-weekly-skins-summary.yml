@@ -1,0 +1,211 @@
+
+name: Add Weekly Skins Leaders
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-skins:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout website
+        uses: actions/checkout@v4
+
+      - name: Add weekly skins summary
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          html_path = Path("index.html")
+          js_path = Path("skins.js")
+
+          if not html_path.exists() or not js_path.exists():
+              raise SystemExit("Missing index.html or skins.js")
+
+          html = html_path.read_text(encoding="utf-8")
+          js = js_path.read_text(encoding="utf-8")
+
+          if 'id="skinsLeaderboard"' not in html:
+              raise SystemExit("Skins section missing")
+
+          if 'id="skinsBody"' not in html:
+              raise SystemExit("Skins results table missing")
+
+          if 'function render() {' not in js:
+              raise SystemExit("Expected skins.js render function missing")
+
+          # Insert weekly summary above the hole-by-hole table.
+          if 'id="skinsWeeklySummary"' not in html:
+              marker = '<div style="overflow-x:auto">\n  <table>'
+
+              section_start = html.index(
+                  '<section class="panel" id="skinsLeaderboard">'
+              )
+              table_start = html.index(
+                  '<div style="overflow-x:auto">',
+                  section_start
+              )
+
+              summary = '''
+          <div id="skinsWeeklySummary">
+            <h3>Weekly Skins Leaders</h3>
+            <p class="season-note">
+              Ranked by total gross skins won this week.
+              Results update as players finish.
+            </p>
+            <div style="overflow-x:auto">
+              <table>
+                <thead>
+                  <tr>
+                    <th>POS</th>
+                    <th>PLAYER</th>
+                    <th>HOLES WON</th>
+                    <th>SKINS</th>
+                  </tr>
+                </thead>
+                <tbody id="skinsWeeklyLeaders">
+                  <tr>
+                    <td colspan="4" class="empty">
+                      Loading weekly leaders…
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          '''
+
+              html = (
+                  html[:table_start] +
+                  summary +
+                  html[table_start:]
+              )
+
+          # Add the summary renderer.
+          if "function renderWeeklyLeaders()" not in js:
+              insertion = '''
+            function renderWeeklyLeaders() {
+              const container = $("skinsWeeklySummary");
+              const body = $("skinsWeeklyLeaders");
+
+              if (!container || !body) return;
+
+              container.style.display =
+                mode === "weekly" ? "" : "none";
+
+              if (mode !== "weekly") return;
+
+              if (!loaded || error) {
+                body.innerHTML = `<tr>
+                  <td colspan="4" class="empty">
+                    ${escapeHTML(error || "Loading…")}
+                  </td>
+                </tr>`;
+                return;
+              }
+
+              const totals = new Map();
+
+              for (const hole of holes) {
+                if (
+                  hole.week_number !== selectedWeek ||
+                  !hole.winner_username ||
+                  hole.skins_awarded <= 0
+                ) continue;
+
+                const key = hole.winner_username
+                  .trim()
+                  .toLowerCase();
+
+                if (!totals.has(key)) {
+                  totals.set(key, {
+                    username: hole.winner_username,
+                    holesWon: 0,
+                    skins: 0
+                  });
+                }
+
+                const player = totals.get(key);
+                player.holesWon++;
+                player.skins += hole.skins_awarded;
+              }
+
+              const ranked = [...totals.values()]
+                .sort((a, b) =>
+                  b.skins - a.skins ||
+                  a.username.localeCompare(b.username)
+                );
+
+              let previous = null;
+              let rank = 0;
+
+              body.innerHTML = ranked.length
+                ? ranked.map((player, index) => {
+                    if (player.skins !== previous) {
+                      rank = index + 1;
+                    }
+
+                    previous = player.skins;
+
+                    return `<tr>
+                      <td class="tag">${rank}</td>
+                      <td>${escapeHTML(player.username)}</td>
+                      <td>${player.holesWon}</td>
+                      <td class="tag">${player.skins}</td>
+                    </tr>`;
+                  }).join("")
+                : `<tr>
+                  <td colspan="4" class="empty">
+                    No skins winners recorded yet.
+                  </td>
+                </tr>`;
+            }
+
+          '''
+
+              js = js.replace(
+                  "  function render() {",
+                  insertion + "  function render() {",
+                  1
+              )
+
+          # Call the summary renderer on every display update.
+          if "renderWeeklyLeaders();" not in js:
+              js = js.replace(
+                  "    setTabs();",
+                  "    setTabs();\n    renderWeeklyLeaders();",
+                  1
+              )
+
+          # Refresh the script version to avoid cached JS.
+          import re
+
+          html = re.sub(
+              r'src="skins\.js\?v=\d+"',
+              'src="skins.js?v=3"',
+              html
+          )
+
+          html_path.write_text(html, encoding="utf-8")
+          js_path.write_text(js, encoding="utf-8")
+
+          print("Weekly Skins Leaders added successfully")
+          PY
+
+      - name: Commit changes
+        run: |
+          if git diff --quiet -- index.html skins.js; then
+            echo "No changes needed."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+            git add index.html skins.js
+            git commit -m "Add automatic weekly skins leaders"
+            git push
+          fi
