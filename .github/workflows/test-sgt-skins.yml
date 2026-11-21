@@ -12,85 +12,66 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install HTML parser
-        run: python3 -m pip install --quiet beautifulsoup4
-
-      - name: Inspect SGT scorecard
+      - name: Inspect SGT scorecard JavaScript
         run: |
           python3 - <<'PY'
           import re
           import urllib.request
-          from bs4 import BeautifulSoup
 
-          URL = (
-              "https://simulatorgolftour.com"
-              "/scorecard/83765/30222"
+          url = (
+              "https://sgt-static.b-cdn.net"
+              "/public/scorecard/page.js?v=2.0.26"
           )
 
           request = urllib.request.Request(
-              URL,
+              url,
               headers={
                   "User-Agent": "Mozilla/5.0",
-                  "Accept": "text/html,*/*"
+                  "Accept": "*/*",
+                  "Referer": "https://simulatorgolftour.com/"
               }
           )
 
           with urllib.request.urlopen(
               request, timeout=40
           ) as response:
-              html = response.read().decode(
+              js = response.read().decode(
                   "utf-8", "replace"
               )
 
-          soup = BeautifulSoup(html, "html.parser")
+          print("=== SCORECARD JAVASCRIPT ===")
+          print("JavaScript length:", len(js))
 
-          print("=== SCORECARD TEST ===")
-          print("HTML length:", len(html))
-          print("Page title:",
-                soup.title.get_text(" ", strip=True)
-                if soup.title else "Unknown")
+          print("\n=== API AND SCORECARD REFERENCES ===")
 
-          print("\n=== TABLES ===")
-          for index, table in enumerate(
-              soup.select("table")[:10], 1
-          ):
-              print(
-                  f"Table {index}:",
-                  table.get_text(" ", strip=True)[:1500]
-              )
+          patterns = [
+              "sgt-api",
+              "fetch(",
+              "XMLHttpRequest",
+              "gross",
+              "holeScores",
+              "scorecard"
+          ]
 
-          print("\n=== GROSS SCORE ELEMENTS ===")
-          found = 0
+          for pattern in patterns:
+              print("\nSEARCH:", pattern)
 
-          for element in soup.find_all(
-              string=re.compile(
-                  r"\bGROSS\b", re.I
-              )
-          ):
-              parent = element.parent
-              if parent:
+              matches = list(re.finditer(
+                  re.escape(pattern),
+                  js,
+                  re.IGNORECASE
+              ))
+
+              print("Matches:", len(matches))
+
+              for match in matches[:8]:
+                  start = max(0, match.start() - 180)
+                  end = min(len(js), match.end() + 250)
+
                   print(
-                      parent.parent.get_text(
-                          " ", strip=True
-                      )[:1000]
+                      js[start:end].replace("\n", " ")
                   )
-                  found += 1
-
-              if found >= 10:
-                  break
-
-          print("\n=== POSSIBLE API REFERENCES ===")
-          references = sorted(set(
-              re.findall(
-                  r'["\']([^"\']*(?:scorecard|sgt-api)'
-                  r'[^"\']*)["\']',
-                  html,
-                  re.I
-              )
-          ))
-
-          for reference in references[:30]:
-              print(reference[:300])
+                  print("---")
 
           print("\n=== TEST COMPLETE ===")
           PY
