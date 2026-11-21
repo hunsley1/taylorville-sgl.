@@ -1,0 +1,96 @@
+
+name: Test SGT Skins Scorecard
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-scorecard:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install HTML parser
+        run: python3 -m pip install --quiet beautifulsoup4
+
+      - name: Inspect SGT scorecard
+        run: |
+          python3 - <<'PY'
+          import re
+          import urllib.request
+          from bs4 import BeautifulSoup
+
+          URL = (
+              "https://simulatorgolftour.com"
+              "/scorecard/83765/30222"
+          )
+
+          request = urllib.request.Request(
+              URL,
+              headers={
+                  "User-Agent": "Mozilla/5.0",
+                  "Accept": "text/html,*/*"
+              }
+          )
+
+          with urllib.request.urlopen(
+              request, timeout=40
+          ) as response:
+              html = response.read().decode(
+                  "utf-8", "replace"
+              )
+
+          soup = BeautifulSoup(html, "html.parser")
+
+          print("=== SCORECARD TEST ===")
+          print("HTML length:", len(html))
+          print("Page title:",
+                soup.title.get_text(" ", strip=True)
+                if soup.title else "Unknown")
+
+          print("\n=== TABLES ===")
+          for index, table in enumerate(
+              soup.select("table")[:10], 1
+          ):
+              print(
+                  f"Table {index}:",
+                  table.get_text(" ", strip=True)[:1500]
+              )
+
+          print("\n=== GROSS SCORE ELEMENTS ===")
+          found = 0
+
+          for element in soup.find_all(
+              string=re.compile(
+                  r"\bGROSS\b", re.I
+              )
+          ):
+              parent = element.parent
+              if parent:
+                  print(
+                      parent.parent.get_text(
+                          " ", strip=True
+                      )[:1000]
+                  )
+                  found += 1
+
+              if found >= 10:
+                  break
+
+          print("\n=== POSSIBLE API REFERENCES ===")
+          references = sorted(set(
+              re.findall(
+                  r'["\']([^"\']*(?:scorecard|sgt-api)'
+                  r'[^"\']*)["\']',
+                  html,
+                  re.I
+              )
+          ))
+
+          for reference in references[:30]:
+              print(reference[:300])
+
+          print("\n=== TEST COMPLETE ===")
+          PY
