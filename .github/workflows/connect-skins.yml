@@ -1,0 +1,71 @@
+
+name: Connect Gross Skins to Website
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  connect-skins:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout website
+        uses: actions/checkout@v4
+
+      - name: Connect skins.js to index.html
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          index = Path("index.html")
+          skins = Path("skins.js")
+
+          if not skins.is_file():
+              raise SystemExit(
+                  "ERROR: skins.js is missing from the main folder."
+              )
+
+          html = index.read_text(encoding="utf-8")
+
+          if 'id="skinsLeaderboard"' not in html:
+              raise SystemExit(
+                  "ERROR: Gross Skins section not found."
+              )
+
+          if 'src="skins.js' in html:
+              print("skins.js is already connected.")
+              raise SystemExit(0)
+
+          marker = "</body>"
+
+          if html.count(marker) != 1:
+              raise SystemExit(
+                  "ERROR: Could not locate closing body tag."
+              )
+
+          html = html.replace(
+              marker,
+              '<script src="skins.js?v=1"></script>\n' + marker,
+              1
+          )
+
+          index.write_text(html, encoding="utf-8")
+
+          print("SUCCESS: skins.js connected to index.html")
+          PY
+
+      - name: Commit website changes
+        run: |
+          if git diff --quiet -- index.html; then
+            echo "Website already connected."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+            git add index.html
+            git commit -m "Connect automatic gross skins leaderboard"
+            git push
+          fi
