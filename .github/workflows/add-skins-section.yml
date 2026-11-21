@@ -1,0 +1,104 @@
+
+name: Add Gross Skins Section to Website
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-index:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout website
+        uses: actions/checkout@v4
+
+      - name: Insert skins section in index.html
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('index.html')
+          html = path.read_text(encoding='utf-8')
+
+          if 'id="skinsLeaderboard"' in html:
+              print('Skins section already present; no changes made.')
+              raise SystemExit(0)
+
+          marker = '<section class="panel">\n<div class="row">\n<div>\n<div class="eyebrow">TEAM COMPETITION</div>'
+
+          if html.count(marker) != 1:
+              raise SystemExit('Could not uniquely locate Team Competition section. Nothing changed.')
+
+          section = '''<!-- AUTOMATIC GROSS SKINS -->
+          <section class="panel" id="skinsLeaderboard">
+          <div class="row">
+          <div>
+          <div class="eyebrow">GROSS SKINS COMPETITION</div>
+          <h2>Weekly &amp; Season Skins</h2>
+          </div>
+          <span class="pill">BOTH TOURNAMENTS COMBINED</span>
+          </div>
+
+          <p class="season-note">
+          Gross skins are calculated automatically using completed rounds
+          from both weekly SGT tournaments. A unique low score wins the
+          hole and accumulated carryovers. Tied holes carry forward.
+          </p>
+
+          <div class="toolbar">
+          <div class="tabs">
+          <button id="skinsWeeklyBtn" class="active">Weekly</button>
+          <button id="skinsSeasonBtn">Season</button>
+          </div>
+          <select id="skinsWeek" aria-label="Skins week">
+          <option value="4">Week 4</option>
+          </select>
+          </div>
+
+          <p id="skinsStatus" class="muted small" role="status">
+          Loading gross skins…
+          </p>
+
+          <div style="overflow-x:auto">
+          <table>
+          <thead id="skinsHead">
+          <tr>
+          <th>HOLE</th>
+          <th>WINNER</th>
+          <th>GROSS</th>
+          <th>SKINS</th>
+          <th>STATUS</th>
+          </tr>
+          </thead>
+          <tbody id="skinsBody">
+          <tr>
+          <td colspan="5" class="empty">Loading…</td>
+          </tr>
+          </tbody>
+          </table>
+          </div>
+
+          <p id="skinsFootnote" class="season-note"></p>
+          </section>
+          <!-- END AUTOMATIC GROSS SKINS -->
+
+          '''
+
+          html = html.replace(marker, section + marker, 1)
+          path.write_text(html, encoding='utf-8')
+          print('Inserted skins section directly before Team Competition.')
+          PY
+
+      - name: Commit updated website
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No changes to commit.'
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add index.html
+            git commit -m 'Add weekly and season gross skins section'
+            git push
+          fi
