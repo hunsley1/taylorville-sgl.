@@ -100,6 +100,41 @@ th{font-size:10px}
 .subtitle{letter-spacing:.15em}
 .brand{font-size:clamp(27px,8vw,43px)}
 }
+
+/* GROSS SKINS MOBILE LAYOUT */
+#skinsLeaderboard table {
+  table-layout: fixed;
+  width: 100%;
+}
+#skinsLeaderboard th,
+#skinsLeaderboard td {
+  padding: 11px 5px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+#skinsLeaderboard th {
+  font-size: 10px;
+  letter-spacing: .04em;
+}
+#skinsLeaderboard th:first-child,
+#skinsLeaderboard td:first-child {
+  width: 13%;
+}
+#skinsLeaderboard th:nth-child(2),
+#skinsLeaderboard td:nth-child(2) {
+  width: 48%;
+}
+#skinsLeaderboard th:nth-child(3),
+#skinsLeaderboard td:nth-child(3) {
+  width: 16%;
+  text-align: center;
+}
+#skinsLeaderboard th:last-child,
+#skinsLeaderboard td:last-child {
+  width: 23%;
+  text-align: right;
+}
+
 </style>
 </head>
 <body>
@@ -262,12 +297,11 @@ Loading gross skins…
 <th>WINNER</th>
 <th>GROSS</th>
 <th>SKINS</th>
-<th>STATUS</th>
 </tr>
 </thead>
 <tbody id="skinsBody">
 <tr>
-<td colspan="5" class="empty">Loading…</td>
+<td colspan="4" class="empty">Loading…</td>
 </tr>
 </tbody>
 </table>

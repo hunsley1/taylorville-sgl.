@@ -102,7 +102,6 @@
 <th>WINNER</th>
 <th>GROSS</th>
 <th>SKINS</th>
-<th>STATUS</th>
 </tr>`
       : `<tr>
 <th>POS</th>
@@ -119,7 +118,7 @@
         }`
       : "Official season totals include finalized weeks only. Provisional weekly skins are excluded.";
 
-    const columns = weekly ? 5 : 4;
+    const columns = 4;
 
     if (error || !loaded) {
       $("skinsStatus").textContent = error
@@ -159,7 +158,7 @@ ${escapeHTML(error || "Loading…")}
         }`;
 
       $("skinsBody").innerHTML = rows.length
-        ? rows.map(h => `
+      ? rows.map(h => `
 <tr>
 <td class="tag">${h.hole_number}</td>
 <td>${
@@ -168,15 +167,14 @@ ${escapeHTML(error || "Loading…")}
     : escapeHTML(h.winner_username || "—")
 }</td>
 <td>${h.winning_score ?? "—"}</td>
-<td class="tag">${h.skins_awarded || "—"}</td>
-<td>${
+<td class="tag">${
   h.is_tied
-    ? `Carry ${h.carryover}`
-    : "Won"
+    ? "Carry " + h.carryover
+    : h.skins_awarded || "—"
 }</td>
 </tr>`).join("")
-        : `<tr>
-<td colspan="5" class="empty">
+      : `<tr>
+<td colspan="4" class="empty">
 No skins calculated for this week yet.
 </td>
 </tr>`;
