@@ -1,0 +1,424 @@
+
+name: SGT Automatic Gross Skins Import
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/10 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sgt-gross-skins-import
+  cancel-in-progress: false
+
+jobs:
+  import-skins:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install HTML parser
+        run: python3 -m pip install --quiet beautifulsoup4
+
+      - name: Import and calculate gross skins
+        env:
+          SUPABASE_URL: https://xgjziyopzeeneccfaszb.supabase.co
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import time
+          import urllib.parse
+          import urllib.request
+
+          from bs4 import BeautifulSoup
+
+          BASE = os.environ["SUPABASE_URL"].rstrip("/")
+          KEY = os.environ["SUPABASE_KEY"]
+          SGT = "https://simulatorgolftour.com"
+
+          ALIASES = {
+              "mikefnhoncho47": "MIKEFNHONCH047"
+          }
+
+          def db(path, method="GET", data=None):
+              headers = {
+                  "apikey": KEY,
+                  "Authorization": "Bearer " + KEY,
+                  "Accept": "application/json"
+              }
+
+              body = None
+
+              if data is not None:
+                  body = json.dumps(data).encode()
+                  headers["Content-Type"] = "application/json"
+                  headers["Prefer"] = (
+                      "resolution=merge-duplicates,"
+                      "return=representation"
+                  )
+
+              request = urllib.request.Request(
+                  BASE + "/rest/v1/" + path,
+                  data=body,
+                  headers=headers,
+                  method=method
+              )
+
+              with urllib.request.urlopen(
+                  request, timeout=40
+              ) as response:
+                  raw = response.read()
+                  return json.loads(raw) if raw else []
+
+          def fetch(path):
+              url = SGT + path
+              last_error = None
+
+              for attempt in range(3):
+                  try:
+                      request = urllib.request.Request(
+                          url,
+                          headers={
+                              "User-Agent": "Mozilla/5.0",
+                              "Accept": "text/html,*/*",
+                              "Referer": SGT + "/"
+                          }
+                      )
+
+                      with urllib.request.urlopen(
+                          request, timeout=40
+                      ) as response:
+                          return BeautifulSoup(
+                              response.read(),
+                              "html.parser"
+                          )
+
+                  except Exception as error:
+                      last_error = error
+                      print(
+                          f"Retry {attempt+1}: "
+                          f"{url}: {error}",
+                          flush=True
+                      )
+                      if attempt < 2:
+                          time.sleep(3 * (attempt+1))
+
+              raise RuntimeError(str(last_error))
+
+          def normalize(value):
+              return " ".join(
+                  str(value).casefold().split()
+              )
+
+          players = db(
+              "sgl_players?select=username"
+          )
+
+          roster = {
+              normalize(p["username"]): p["username"]
+              for p in players
+          }
+
+          weeks = db(
+              "sgl_weeks?select="
+              "week_number,"
+              "tournament_1_id,"
+              "tournament_2_id"
+              "&order=week_number.asc"
+          )
+
+          def match_player(name):
+              key = normalize(name)
+
+              if key in roster:
+                  return roster[key]
+
+              alias = ALIASES.get(key)
+
+              if alias:
+                  return roster.get(normalize(alias))
+
+              return None
+
+          def get_scores(tid, pid):
+              soup = fetch(
+                  f"/sgt-api/scorecard/"
+                  f"{tid}/{pid}/indv"
+              )
+
+              for row in soup.select("tr"):
+                  cells = row.find_all(
+                      ["th", "td"],
+                      recursive=False
+                  )
+
+                  if not cells:
+                      continue
+
+                  label = cells[0].get_text(
+                      " ", strip=True
+                  ).upper()
+
+                  if label != "GROSS":
+                      continue
+
+                  values = [
+                      c.get_text(" ", strip=True)
+                      for c in cells[1:]
+                  ]
+
+                  if len(values) != 21:
+                      raise ValueError(
+                          f"Expected 21 score columns, "
+                          f"got {len(values)}"
+                      )
+
+                  indices = (
+                      list(range(9))
+                      + list(range(10, 19))
+                  )
+
+                  scores = [
+                      int(values[i])
+                      for i in indices
+                  ]
+
+                  total = int(values[20])
+
+                  if sum(scores) != total:
+                      raise ValueError(
+                          "Gross score total mismatch"
+                      )
+
+                  return scores, total
+
+              raise ValueError("GROSS row missing")
+
+          def get_tournament_players(tid):
+              soup = fetch(
+                  f"/sgt-api/leaderboard/{tid}"
+              )
+
+              found = {}
+
+              for row in soup.select(
+                  "tr.finished-card"
+              ):
+                  raw_name = row.get(
+                      "data-player-name", ""
+                  )
+
+                  username = match_player(raw_name)
+
+                  if not username:
+                      print(
+                          f"Skipping non-league player: "
+                          f"{raw_name}"
+                      )
+                      continue
+
+                  link = row.select_one(
+                      f'a[href^="/scorecard/{tid}/"]'
+                  )
+
+                  if link is None:
+                      raise ValueError(
+                          f"Missing scorecard: {raw_name}"
+                      )
+
+                  match = re.fullmatch(
+                      rf"/scorecard/{re.escape(tid)}/"
+                      r"(\d+)/?",
+                      link["href"]
+                  )
+
+                  if not match:
+                      raise ValueError(
+                          f"Invalid scorecard link: "
+                          f"{link['href']}"
+                      )
+
+                  if username in found:
+                      raise ValueError(
+                          f"Duplicate player: {username}"
+                      )
+
+                  found[username] = match.group(1)
+
+              return found
+
+          def calculate_skins(number, scorecards):
+              results = []
+              carry = 0
+
+              for hole in range(18):
+                  best = min(
+                      card["hole_scores"][hole]
+                      for card in scorecards
+                  )
+
+                  winners = [
+                      card["username"]
+                      for card in scorecards
+                      if card["hole_scores"][hole] == best
+                  ]
+
+                  if len(winners) == 1:
+                      results.append({
+                          "week_number": number,
+                          "hole_number": hole + 1,
+                          "winner_username": winners[0],
+                          "winning_score": best,
+                          "skins_awarded": carry + 1,
+                          "carryover": 0,
+                          "is_tied": False
+                      })
+                      carry = 0
+                  else:
+                      carry += 1
+
+                      results.append({
+                          "week_number": number,
+                          "hole_number": hole + 1,
+                          "winner_username": None,
+                          "winning_score": best,
+                          "skins_awarded": 0,
+                          "carryover": carry,
+                          "is_tied": True
+                      })
+
+              return results
+
+          print(
+              f"Loaded {len(roster)} league players",
+              flush=True
+          )
+
+          failures = 0
+
+          for week in weeks:
+              number = week["week_number"]
+
+              tids = []
+
+              for field in (
+                  "tournament_1_id",
+                  "tournament_2_id"
+              ):
+                  value = week.get(field)
+
+                  if value is not None:
+                      tid = str(value).strip()
+
+                      if tid and tid not in tids:
+                          tids.append(tid)
+
+              if not tids:
+                  continue
+
+              print(
+                  f"\n=== WEEK {number} ===",
+                  flush=True
+              )
+
+              try:
+                  discovered = {}
+
+                  for tid in tids:
+                      found = get_tournament_players(tid)
+
+                      for username, pid in found.items():
+                          if username in discovered:
+                              raise ValueError(
+                                  "Player appears in both "
+                                  f"tournaments: {username}"
+                              )
+
+                          discovered[username] = (
+                              tid, pid
+                          )
+
+                  if not discovered:
+                      print("No finished players")
+                      continue
+
+                  scorecards = []
+
+                  for username, (tid, pid) in (
+                      sorted(discovered.items())
+                  ):
+                      scores, total = get_scores(
+                          tid, pid
+                      )
+
+                      scorecards.append({
+                          "week_number": number,
+                          "username": username,
+                          "tournament_id": tid,
+                          "scorecard_id": pid,
+                          "gross_total": total,
+                          "hole_scores": scores
+                      })
+
+                      print(
+                          f"{username}: {total}",
+                          flush=True
+                      )
+
+                  results = calculate_skins(
+                      number, scorecards
+                  )
+
+                  saved_scores = db(
+                      "sgl_skins_player_scores?"
+                      "on_conflict=week_number,username",
+                      method="POST",
+                      data=scorecards
+                  )
+
+                  if len(saved_scores) != len(scorecards):
+                      raise RuntimeError(
+                          "Not all scorecards saved"
+                      )
+
+                  saved_skins = db(
+                      "sgl_skins?"
+                      "on_conflict=week_number,hole_number",
+                      method="POST",
+                      data=results
+                  )
+
+                  if len(saved_skins) != 18:
+                      raise RuntimeError(
+                          "Not all 18 skins rows saved"
+                      )
+
+                  print(
+                      f"Week {number}: "
+                      f"{len(scorecards)} players, "
+                      "18 holes calculated",
+                      flush=True
+                  )
+
+              except Exception as error:
+                  failures += 1
+                  print(
+                      f"ERROR Week {number}: {error}",
+                      flush=True
+                  )
+
+          if failures:
+              raise SystemExit(
+                  f"{failures} week(s) failed"
+              )
+
+          print(
+              "\nSKINS IMPORT COMPLETE",
+              flush=True
+          )
+          PY
