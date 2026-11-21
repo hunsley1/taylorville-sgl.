@@ -15,69 +15,103 @@ jobs:
       - name: Install HTML parser
         run: python3 -m pip install --quiet beautifulsoup4
 
-      - name: Test hole-by-hole scorecard API
+      - name: Find player scorecard IDs
         run: |
           python3 - <<'PY'
+          import re
           import urllib.request
-          import urllib.error
           from bs4 import BeautifulSoup
 
-          urls = [
-              "https://simulatorgolftour.com/sgt-api/scorecard/83765/30222/indv",
-              "https://simulatorgolftour.com/sgt-api/scorecard/83765/30222/indv/"
-          ]
+          tournaments = ["83765", "83767"]
 
-          for url in urls:
-              print("\n=== TESTING ===", url, flush=True)
+          for tid in tournaments:
+              url = (
+                  "https://simulatorgolftour.com"
+                  f"/sgt-api/leaderboard/{tid}"
+              )
+
+              print(
+                  f"\n=== TOURNAMENT {tid} ===",
+                  flush=True
+              )
 
               try:
-                  req = urllib.request.Request(
+                  request = urllib.request.Request(
                       url,
                       headers={
                           "User-Agent": "Mozilla/5.0",
                           "Accept": "text/html,*/*",
-                          "Referer": "https://simulatorgolftour.com/scorecard/83765/30222"
+                          "Referer": "https://simulatorgolftour.com/"
                       }
                   )
 
                   with urllib.request.urlopen(
-                      req, timeout=40
+                      request, timeout=40
                   ) as response:
                       html = response.read().decode(
                           "utf-8", "replace"
                       )
 
-                  soup = BeautifulSoup(html, "html.parser")
+                  soup = BeautifulSoup(
+                      html, "html.parser"
+                  )
 
-                  print("SUCCESS")
-                  print("HTML length:", len(html))
-                  print("Tables:", len(soup.select("table")))
+                  rows = soup.select(
+                      "tr.finished-card"
+                  )
 
-                  for table in soup.select("table")[:5]:
-                      print(
-                          "TABLE:",
-                          table.get_text(" ", strip=True)[:1500]
+                  print(
+                      "Finished players:",
+                      len(rows)
+                  )
+
+                  for row in rows:
+                      name = row.get(
+                          "data-player-name", ""
                       )
 
-                  print("\nGROSS SCORE MATCHES:")
+                      print("\nPLAYER:", name)
 
-                  for element in soup.find_all(
-                      string=lambda s:
-                          s and "gross" in s.lower()
-                  )[:8]:
                       print(
-                          element.parent.parent.get_text(
-                              " ", strip=True
-                          )[:500]
+                          "ROW ATTRIBUTES:",
+                          dict(row.attrs)
                       )
 
-                  print("\nHTML PREVIEW:")
-                  print(soup.get_text(" ", strip=True)[:2000])
+                      links = row.select("a[href]")
 
-              except urllib.error.HTTPError as exc:
-                  print("HTTP ERROR:", exc.code)
-              except Exception as exc:
-                  print("ERROR:", exc)
+                      for link in links[:8]:
+                          print(
+                              "LINK:",
+                              link.get("href"),
+                              "TEXT:",
+                              link.get_text(
+                                  " ", strip=True
+                              )[:100]
+                          )
+
+                      ids = re.findall(
+                          r"(?:scorecard/|data-pid=)"
+                          r"[^<\s]{0,100}",
+                          str(row),
+                          re.I
+                      )
+
+                      for value in ids[:5]:
+                          print(
+                              "SCORECARD REFERENCE:",
+                              value[:150]
+                          )
+
+                  print(
+                      f"\n=== END TOURNAMENT {tid} ==="
+                  )
+
+              except Exception as error:
+                  print(
+                      "ERROR:",
+                      type(error).__name__,
+                      str(error)
+                  )
 
           print("\n=== TEST COMPLETE ===")
           PY
