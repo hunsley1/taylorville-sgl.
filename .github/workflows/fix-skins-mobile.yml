@@ -1,0 +1,211 @@
+
+name: Fix Gross Skins Mobile Layout
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-skins:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout website
+        uses: actions/checkout@v4
+
+      - name: Improve skins mobile layout
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          index = Path("index.html")
+          script = Path("skins.js")
+
+          if not index.exists() or not script.exists():
+              raise SystemExit("Missing index.html or skins.js")
+
+          html = index.read_text(encoding="utf-8")
+          js = script.read_text(encoding="utf-8")
+
+          if 'id="skinsLeaderboard"' not in html:
+              raise SystemExit("Skins section not found")
+
+          # Add mobile-friendly skins styles.
+          css = """
+          /* GROSS SKINS MOBILE LAYOUT */
+          #skinsLeaderboard table {
+            table-layout: fixed;
+            width: 100%;
+          }
+          #skinsLeaderboard th,
+          #skinsLeaderboard td {
+            padding: 11px 5px;
+            font-size: 12px;
+            overflow-wrap: anywhere;
+          }
+          #skinsLeaderboard th {
+            font-size: 10px;
+            letter-spacing: .04em;
+          }
+          #skinsLeaderboard th:first-child,
+          #skinsLeaderboard td:first-child {
+            width: 13%;
+          }
+          #skinsLeaderboard th:nth-child(2),
+          #skinsLeaderboard td:nth-child(2) {
+            width: 48%;
+          }
+          #skinsLeaderboard th:nth-child(3),
+          #skinsLeaderboard td:nth-child(3) {
+            width: 16%;
+            text-align: center;
+          }
+          #skinsLeaderboard th:last-child,
+          #skinsLeaderboard td:last-child {
+            width: 23%;
+            text-align: right;
+          }
+          """
+
+          if "GROSS SKINS MOBILE LAYOUT" not in html:
+              html = html.replace(
+                  "</style>",
+                  css + "\n</style>",
+                  1
+              )
+
+          # Update initial table header.
+          start = html.index(
+              '<thead id="skinsHead">'
+          )
+          end = html.index(
+              "</thead>",
+              start
+          ) + len("</thead>")
+
+          html = (
+              html[:start] +
+              """<thead id="skinsHead">
+          <tr>
+          <th>HOLE</th>
+          <th>WINNER</th>
+          <th>GROSS</th>
+          <th>SKINS</th>
+          </tr>
+          </thead>""" +
+              html[end:]
+          )
+
+          # Update initial loading row.
+          start = html.index(
+              '<tbody id="skinsBody">'
+          )
+          end = html.index(
+              "</tbody>",
+              start
+          ) + len("</tbody>")
+
+          html = (
+              html[:start] +
+              """<tbody id="skinsBody">
+          <tr>
+          <td colspan="4" class="empty">Loading…</td>
+          </tr>
+          </tbody>""" +
+              html[end:]
+          )
+
+          # Update the JavaScript weekly header.
+          old_header = """<th>SKINS</th>
+          <th>STATUS</th>"""
+
+          if old_header not in js:
+              raise SystemExit(
+                  "Expected weekly skins header not found"
+              )
+
+          js = js.replace(
+              old_header,
+              "<th>SKINS</th>",
+              1
+          )
+
+          # Both weekly and season now have 4 columns.
+          old_columns = (
+              "const columns = weekly ? 5 : 4;"
+          )
+
+          if old_columns not in js:
+              raise SystemExit(
+                  "Expected column count not found"
+              )
+
+          js = js.replace(
+              old_columns,
+              "const columns = 4;",
+              1
+          )
+
+          # Replace weekly hole row rendering.
+          start_marker = (
+              '      $("skinsBody").innerHTML = rows.length'
+          )
+          end_marker = (
+              '\n\n    } else {'
+          )
+
+          start = js.find(start_marker)
+          end = js.find(end_marker, start)
+
+          if start == -1 or end == -1:
+              raise SystemExit(
+                  "Could not locate weekly skins rendering"
+              )
+
+          new_render = """      $("skinsBody").innerHTML = rows.length
+                ? rows.map(h => `
+          <tr>
+          <td class="tag">${h.hole_number}</td>
+          <td>${
+            h.is_tied
+              ? "Tied"
+              : escapeHTML(h.winner_username || "—")
+          }</td>
+          <td>${h.winning_score ?? "—"}</td>
+          <td class="tag">${
+            h.is_tied
+              ? "Carry " + h.carryover
+              : h.skins_awarded || "—"
+          }</td>
+          </tr>`).join("")
+                : `<tr>
+          <td colspan="4" class="empty">
+          No skins calculated for this week yet.
+          </td>
+          </tr>`;"""
+
+          js = (
+              js[:start] +
+              new_render +
+              js[end:]
+          )
+
+          index.write_text(html, encoding="utf-8")
+          script.write_text(js, encoding="utf-8")
+
+          print("SUCCESS: Mobile skins layout updated")
+          PY
+
+      - name: Commit changes
+        run: |
+          if git diff --quiet; then
+            echo "No changes needed."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add index.html skins.js
+            git commit -m "Improve gross skins mobile layout"
+            git push
+          fi
