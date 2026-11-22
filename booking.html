@@ -35,6 +35,10 @@ details summary{cursor:pointer;color:#e0bb69;font-weight:700}
 .schedule-name{font-weight:650;margin-top:4px}
 .schedule-type{color:#b9b4a9;font-size:13px;margin-top:3px}
 .schedule-summary{color:#b9b4a9;font-size:13px;margin-top:6px}
+.stream-badge{display:inline-block;background:#641c1c;border:1px solid #ef6565;color:#fff;border-radius:7px;padding:5px 9px;font-size:12px;font-weight:800;letter-spacing:.04em}
+.stream-note{background:#282119;border:1px solid #9f884d;border-radius:10px;padding:12px 14px;margin:14px 0;color:#f1d28a;font-size:14px;line-height:1.5}
+.success{color:#a9e6a9}
+.error{color:#ffaaaa}
 #schedule{list-style:none;padding:0;margin:0}
 #adminSchedule{list-style:none;padding:0}
 @media(max-width:550px){
@@ -78,10 +82,20 @@ main{padding:15px}
 <label for="purpose">Purpose</label>
 <select id="purpose">
 <option value="league">League match</option>
+<option value="livestream">Livestream league match</option>
 <option value="practice">Practice</option>
 <option value="warmup">Warm-up and match</option>
 </select>
 </div>
+</div>
+
+<div id="streamNote" class="stream-note" hidden>
+<strong>Livestream league match</strong>
+<p>
+This reservation will be marked for YouTube livestreaming.
+Booking is confirmed immediately without organizer approval.
+The broadcast depends on the streaming equipment being available.
+</p>
 </div>
 
 <label for="code">Private league booking code</label>
@@ -144,6 +158,17 @@ const SUPABASE_URL='https://xgjziyopzeeneccfaszb.supabase.co';
 const SUPABASE_KEY='sb_publishable_7ttHIcbCVOCv1rJlWpq0AA_59y0Tw7O';
 const TZ='America/Chicago';
 const $=id=>document.getElementById(id);
+
+const TYPE_LABELS={
+ league:'League match',
+ livestream:'Livestream league match',
+ practice:'Practice',
+ warmup:'Warm-up and match'
+};
+
+function bookingTypeLabel(type){
+ return TYPE_LABELS[type]||type||'Reservation';
+}
 
 function chicagoDate(d=new Date()){
  const p=Object.fromEntries(
@@ -313,6 +338,9 @@ $('date').min=chicagoDate();
 $('start').value='18:00';
 
 function preview(){
+ $('streamNote').hidden=
+  $('purpose').value!=='livestream';
+
  try{
   const start=chicagoISO(
    $('date').value,
@@ -332,19 +360,21 @@ function preview(){
  }
 }
 
-['date','start','duration'].forEach(id=>
+['date','start','duration','purpose'].forEach(id=>
  $(id).addEventListener('change',preview)
 );
 
 preview();
 
 let visibleBookings=[];
+let scheduleLoaded=false;
 
 async function refresh(){
  const today=chicagoDate();
  const lastDay=addDays(today,6);
  const nextDay=addDays(today,7);
 
+ $('scheduleRange').dataset.today=today;
  $('scheduleRange').textContent=
   dateLabel(today)+' through '+dateLabel(lastDay);
 
@@ -366,6 +396,7 @@ async function refresh(){
    +'&order=start_time.asc';
 
   visibleBookings=await api(path);
+  scheduleLoaded=true;
 
   $('schedule').replaceChildren();
 
@@ -440,7 +471,16 @@ async function refresh(){
 
     const type=document.createElement('div');
     type.className='schedule-type';
-    type.textContent=booking.booking_type;
+
+    if(booking.booking_type==='livestream'){
+     const badge=document.createElement('span');
+     badge.className='stream-badge';
+     badge.textContent='LIVE STREAM';
+     type.append(badge);
+    }else{
+     type.textContent=
+      bookingTypeLabel(booking.booking_type);
+    }
 
     li.append(times,name,type);
     list.append(li);
@@ -461,6 +501,7 @@ async function refresh(){
 
  }catch(e){
   visibleBookings=[];
+  scheduleLoaded=false;
 
   $('schedule').replaceChildren();
 
@@ -477,6 +518,13 @@ async function refresh(){
 function renderAdmin(){
  const list=$('adminSchedule');
  list.replaceChildren();
+
+ if(!scheduleLoaded){
+  const li=document.createElement('li');
+  li.textContent='Schedule unavailable. Refresh and try again.';
+  list.append(li);
+  return;
+ }
 
  if(!visibleBookings.length){
   const li=document.createElement('li');
@@ -496,7 +544,7 @@ function renderAdmin(){
    display(booking.start_time)+' – '+
    display(booking.end_time)+' | '+
    booking.player_name+' | '+
-   booking.booking_type;
+   bookingTypeLabel(booking.booking_type);
 
   const btn=document.createElement('button');
   btn.type='button';
@@ -579,6 +627,7 @@ $('form').onsubmit=async event=>{
  event.preventDefault();
 
  $('book').disabled=true;
+ $('message').className='';
  $('message').textContent=
   'Checking and reserving…';
 
@@ -594,13 +643,15 @@ $('form').onsubmit=async event=>{
    );
   }
 
+  const type=$('purpose').value;
+
   const result=await api(
    'rpc/book_simulator',
    {
     method:'POST',
     body:JSON.stringify({
      p_player_name:$('player').value.trim(),
-     p_booking_type:$('purpose').value,
+     p_booking_type:type,
      p_start_time:start,
      p_duration_minutes:
       Number($('duration').value),
@@ -609,14 +660,19 @@ $('form').onsubmit=async event=>{
    }
   );
 
+  $('message').className='success';
+
   $('message').textContent=
-   'Reservation confirmed! Booking ID: '+result;
+   type==='livestream'
+   ?'Livestream league match confirmed! Booking ID: '+result
+   :'Reservation confirmed! Booking ID: '+result;
 
   $('code').value='';
 
   await refresh();
 
  }catch(e){
+  $('message').className='error';
   $('message').textContent=
    e.message.includes('no_overlapping_bookings')
    ?'This time is already reserved. Please choose another time.'
@@ -659,12 +715,6 @@ setInterval(()=>{
   refresh();
  }
 },60000);
-
-const originalRefresh=refresh;
-refresh=async function(){
- $('scheduleRange').dataset.today=chicagoDate();
- return originalRefresh();
-};
 </script>
 </body>
 </html>
