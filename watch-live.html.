@@ -303,7 +303,7 @@ footer {
   YouTube livestream video ID.
 
   Example:
-  videoId: "YOUR_VIDEO_ID"
+  videoId: "bZStCjbwdXg"
 
   Leave it empty until a stream is ready.
 */
