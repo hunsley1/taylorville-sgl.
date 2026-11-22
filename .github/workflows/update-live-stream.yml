@@ -1,0 +1,97 @@
+
+name: Update TGSL Livestream
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-stream:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout website
+        uses: actions/checkout@v4
+
+      - name: Connect YouTube livestream
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          video_id = "bZStCjbwdXg"
+
+          # Locate the Watch Live Golf HTML file.
+          candidates = []
+
+          for path in Path(".").rglob("*.html"):
+              if ".git" in path.parts:
+                  continue
+
+              content = path.read_text(
+                  encoding="utf-8"
+              )
+
+              if (
+                  "TGSL_LIVE" in content
+                  and "initializeLivestream" in content
+              ):
+                  candidates.append(path)
+
+          if len(candidates) != 1:
+              raise SystemExit(
+                  "Expected one livestream page, found "
+                  + str(len(candidates))
+              )
+
+          page = candidates[0]
+          html = page.read_text(encoding="utf-8")
+
+          # Replace the configured YouTube video ID.
+          pattern = (
+              r'(const\s+TGSL_LIVE\s*=\s*\{\s*'
+              r'videoId\s*:\s*")[^"]*(")'
+          )
+
+          html, count = re.subn(
+              pattern,
+              lambda match:
+                  match.group(1)
+                  + video_id
+                  + match.group(2),
+              html,
+              count=1
+          )
+
+          if count != 1:
+              raise SystemExit(
+                  "Could not update TGSL_LIVE videoId"
+              )
+
+          page.write_text(
+              html,
+              encoding="utf-8"
+          )
+
+          print(
+              "SUCCESS: Updated "
+              + str(page)
+              + " with YouTube video "
+              + video_id
+          )
+          PY
+
+      - name: Commit and publish changes
+        run: |
+          if git diff --quiet; then
+            echo "Livestream already configured."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+            git add -u
+            git commit -m "Connect TGSL YouTube livestream"
+            git push
+          fi
