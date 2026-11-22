@@ -1,0 +1,53 @@
+
+name: Test TGSL Live Player
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test-player:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout website
+        uses: actions/checkout@v4
+
+      - name: Create test livestream status
+        run: |
+          python3 - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          status = {
+              "live": True,
+              "videoId": "bZStCjbwdXg",
+              "checkedAt": datetime.now(
+                  timezone.utc
+              ).isoformat()
+          }
+
+          Path("youtube-live.json").write_text(
+              json.dumps(status, indent=2) + "\n",
+              encoding="utf-8"
+          )
+
+          print("Test livestream status created")
+          PY
+
+      - name: Commit status file
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add youtube-live.json
+
+          if git diff --cached --quiet; then
+            echo "No changes needed."
+          else
+            git commit -m "Test TGSL embedded livestream"
+            git push
+          fi
