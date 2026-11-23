@@ -56,7 +56,7 @@ main{padding:15px}
 
 <section class="card">
 <h2>Book the simulator</h2>
-<p class="muted">Reservations start every 30 minutes and may cross midnight.</p>
+<p class="muted">Reservations start every 15 minutes and may cross midnight.</p>
 
 <form id="form">
 <label for="player">Player name</label>
@@ -300,9 +300,10 @@ async function api(path,options={}){
  return data;
 }
 
-for(let i=0;i<48;i++){
- const h=Math.floor(i/2);
- const m=i%2*30;
+// START TIMES: EVERY 15 MINUTES, 24 HOURS A DAY
+for(let i=0;i<96;i++){
+ const h=Math.floor(i/4);
+ const m=(i%4)*15;
 
  const value=
   String(h).padStart(2,'0')+':'+
@@ -322,6 +323,7 @@ for(let i=0;i<48;i++){
  $('start').append(option);
 }
 
+// RESERVATION DURATIONS: 1 TO 6 HOURS
 for(let i=2;i<=12;i++){
  const option=document.createElement('option');
  option.value=i*30;
