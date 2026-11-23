@@ -134,7 +134,6 @@ th{font-size:10px}
   width: 23%;
   text-align: right;
 }
-
 </style>
 </head>
 <body>
@@ -242,7 +241,7 @@ Visit TGSL YouTube Channel
 <button id="par3SeasonBtn">Season</button>
 </div>
 <select id="par3Week" aria-label="Par 3 week">
-<option value="4">Week 4</option>
+<option value="5">Week 5</option>
 </select>
 </div>
 <p id="par3Status" class="muted small" role="status">Loading closest-to-pin results…</p>
@@ -281,7 +280,7 @@ hole and accumulated carryovers. Tied holes carry forward.
 <button id="skinsSeasonBtn">Season</button>
 </div>
 <select id="skinsWeek" aria-label="Skins week">
-<option value="4">Week 4</option>
+<option value="5">Week 5</option>
 </select>
 </div>
 
@@ -289,32 +288,31 @@ hole and accumulated carryovers. Tied holes carry forward.
 Loading gross skins…
 </p>
 
-
 <div id="skinsWeeklySummary">
-  <h3>Weekly Skins Leaders</h3>
-  <p class="season-note">
-    Ranked by total gross skins won this week.
-    Results update as players finish.
-  </p>
-  <div style="overflow-x:auto">
-    <table>
-      <thead>
-        <tr>
-          <th>POS</th>
-          <th>PLAYER</th>
-          <th>HOLES WON</th>
-          <th>SKINS</th>
-        </tr>
-      </thead>
-      <tbody id="skinsWeeklyLeaders">
-        <tr>
-          <td colspan="4" class="empty">
-            Loading weekly leaders…
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+<h3>Weekly Skins Leaders</h3>
+<p class="season-note">
+Ranked by total gross skins won this week.
+Results update as players finish.
+</p>
+<div style="overflow-x:auto">
+<table>
+<thead>
+<tr>
+<th>POS</th>
+<th>PLAYER</th>
+<th>HOLES WON</th>
+<th>SKINS</th>
+</tr>
+</thead>
+<tbody id="skinsWeeklyLeaders">
+<tr>
+<td colspan="4" class="empty">
+Loading weekly leaders…
+</td>
+</tr>
+</tbody>
+</table>
+</div>
 </div>
 
 <div style="overflow-x:auto">
@@ -465,12 +463,12 @@ const esc = s => String(s ?? "").replace(
 );
 
 let db = null;
-let currentWeek = 4;
+let currentWeek = 5;
 let view = "gross";
 let seasonView = "gross";
 let archiveView = "gross";
 let archiveCategory = "individual";
-let archiveWeek = 3;
+let archiveWeek = 4;
 let leagueFullyLoaded = false;
 
 const isScore = x =>
@@ -593,7 +591,6 @@ function teamResults(number) {
     );
 }
 
-// Display current scores without waiting for teams.
 function renderCurrentScores() {
   if (!db) return;
 
@@ -1132,7 +1129,7 @@ document.addEventListener(
   }
 );
 
-// Par 3 Challenge
+// PAR 3 CHALLENGE
 const PAR3_CONFIG = {
   url: "https://xgjziyopzeeneccfaszb.supabase.co",
   key: "sb_publishable_7ttHIcbCVOCv1rJlWpq0AA_59y0Tw7O"
@@ -1140,9 +1137,11 @@ const PAR3_CONFIG = {
 
 let par3Shots = [];
 let par3Mode = "weekly";
-let par3SelectedWeek = 4;
+let par3SelectedWeek = null;
 let par3Loaded = false;
 let par3Error = "";
+let par3ManualWeekSelection = false;
+let par3Loading = false;
 
 async function par3Fetch(table, select) {
   const response = await fetch(
@@ -1234,8 +1233,8 @@ function par3Render() {
 </tr>`;
 
   $("par3Footnote").textContent = weekly
-    ? `Week ${par3SelectedWeek}: each player's closest shot from either tournament counts. Equal distances share rank.`
-    : "Season rankings use each golfer’s single closest shot across all weeks. Equal distances share rank.";
+    ? `Week ${par3SelectedWeek ?? "—"}: each player's closest shot from either tournament counts. Equal distances share rank.`
+    : "Season rankings use each golfer's single closest shot across all weeks. Equal distances share rank.";
 
   const cols = weekly ? 4 : 5;
 
@@ -1267,7 +1266,7 @@ Loading Par 3 results…
   const ranked = par3BestShots(relevant);
 
   $("par3Status").textContent = weekly
-    ? `Week ${par3SelectedWeek} · ${ranked.length} golfers with recorded shots`
+    ? `Week ${par3SelectedWeek ?? "—"} · ${ranked.length} golfers with recorded shots`
     : `Season · ${ranked.length} golfers with recorded shots`;
 
   if (!ranked.length) {
@@ -1311,29 +1310,41 @@ function par3SetWeeks(weeks) {
     );
   }
 
-  const latestWithShots = numbers
-    .filter(n => available.has(n))
-    .at(-1);
+  // Automatically use the first unfinished week.
+  const activeWeek = weeks
+    .filter(w => w.finalized === false)
+    .map(w => Number(w.week_number))
+    .filter(n => Number.isInteger(n) && n > 0)
+    .sort((a, b) => a - b)[0] ??
+    numbers.at(-1) ??
+    null;
 
-  par3SelectedWeek =
-    numbers.includes(currentWeek) &&
-    available.has(currentWeek)
-      ? currentWeek
-      : latestWithShots ??
-        (
-          numbers.includes(currentWeek)
-            ? currentWeek
-            : numbers.at(-1) ?? 4
-        );
+  // Follow the active week unless a visitor
+  // manually selects a different week.
+  if (
+    !par3ManualWeekSelection ||
+    !numbers.includes(par3SelectedWeek)
+  ) {
+    par3SelectedWeek = activeWeek;
+    par3ManualWeekSelection = false;
+  }
 
   $("par3Week").innerHTML =
     numbers.map(n => `
 <option value="${n}">
-Week ${n}${available.has(n) ? " · Results" : ""}
+Week ${n}${
+  n === activeWeek
+    ? " · Current"
+    : available.has(n)
+      ? " · Results"
+      : ""
+}
 </option>`).join("");
 
-  $("par3Week").value =
-    String(par3SelectedWeek);
+  if (par3SelectedWeek !== null) {
+    $("par3Week").value =
+      String(par3SelectedWeek);
+  }
 }
 
 $("par3WeeklyBtn").onclick = () => {
@@ -1348,10 +1359,15 @@ $("par3SeasonBtn").onclick = () => {
 
 $("par3Week").onchange = event => {
   par3SelectedWeek = Number(event.target.value);
+  par3ManualWeekSelection = true;
   par3Render();
 };
 
 async function loadPar3() {
+  if (par3Loading) return;
+
+  par3Loading = true;
+
   try {
     const [shots, weeks] = await Promise.all([
       par3Fetch(
@@ -1360,7 +1376,7 @@ async function loadPar3() {
       ),
       par3Fetch(
         "sgl_weeks",
-        "week_number"
+        "week_number,finalized"
       )
     ]);
 
@@ -1385,8 +1401,6 @@ async function loadPar3() {
     par3Loaded = true;
     par3Error = "";
 
-    par3Render();
-
   } catch (error) {
     console.error(
       "Par 3 leaderboard error:",
@@ -1394,14 +1408,34 @@ async function loadPar3() {
     );
 
     par3Error = error.message;
+
+  } finally {
+    par3Loading = false;
     par3Render();
   }
 }
 
-// Par 3 loads independently of combined standings.
+// Load Par 3 independently.
 loadPar3();
 
+// Refresh Par 3 every 60 seconds.
+setInterval(() => {
+  if (document.visibilityState === "visible") {
+    loadPar3();
+  }
+}, 60000);
+
+// Refresh when returning to the website.
+document.addEventListener(
+  "visibilitychange",
+  () => {
+    if (document.visibilityState === "visible") {
+      loadPar3();
+    }
+  }
+);
+
 </script>
-<script src="skins.js?v=3"></script>
+<script src="skins.js?v=4"></script>
 </body>
 </html>
