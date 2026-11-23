@@ -8,6 +8,100 @@
 
 <title>Taylorville Simulator Golf League</title>
 
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Taylorville SGL">
+<meta name="application-name" content="Taylorville SGL">
+<meta name="mobile-web-app-capable" content="yes">
+
+<!--
+  App icon recovery:
+  Use an existing site icon when one can be located.
+  The confirmed home artwork is only a fallback.
+-->
+<link
+  id="tgslAppleIcon"
+  rel="apple-touch-icon"
+  href="tgsl_assets/tgsl-home-art.png"
+>
+<link
+  id="tgslFavicon"
+  rel="icon"
+  href="tgsl_assets/tgsl-home-art.png"
+>
+
+<script>
+(function () {
+  async function findOriginalIcon() {
+    const candidates = [
+      "apple-touch-icon.png",
+      "apple-touch-icon-180x180.png",
+      "icon-180.png",
+      "icon-192.png",
+      "icon-512.png",
+      "tgsl_assets/apple-touch-icon.png",
+      "tgsl_assets/tgsl-icon.png",
+      "tgsl_assets/icon-180.png",
+      "tgsl_assets/icon-192.png",
+      "tgsl_assets/icon-512.png"
+    ];
+
+    try {
+      const response = await fetch("index.html", {
+        cache: "no-store"
+      });
+
+      if (response.ok) {
+        const html = await response.text();
+        const documentCopy = new DOMParser()
+          .parseFromString(html, "text/html");
+
+        const existing = documentCopy.querySelector(
+          'link[rel~="apple-touch-icon"],link[rel~="icon"]'
+        );
+
+        if (existing) {
+          const href = existing.getAttribute("href");
+
+          if (href) {
+            candidates.unshift(
+              new URL(href, new URL("index.html", location.href)).href
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("Could not inspect website icon:", error);
+    }
+
+    for (const path of candidates) {
+      try {
+        const response = await fetch(path, {
+          method: "HEAD",
+          cache: "no-store"
+        });
+
+        if (!response.ok) continue;
+
+        const type = response.headers.get("content-type") || "";
+
+        if (!type.startsWith("image/")) continue;
+
+        document.getElementById("tgslAppleIcon").href = path;
+        document.getElementById("tgslFavicon").href = path;
+
+        console.log("TGSL icon found:", path);
+        return;
+      } catch (error) {
+        // Try next existing icon filename.
+      }
+    }
+  }
+
+  findOriginalIcon();
+})();
+</script>
+
 <style>
 * {
   box-sizing: border-box;
@@ -121,12 +215,7 @@ button {
 .page-head {
   padding: 38px 18px 27px;
   text-align: center;
-  background:
-    linear-gradient(
-      160deg,
-      #16472c,
-      #041b10
-    );
+  background: linear-gradient(160deg, #16472c, #041b10);
   border-bottom: 1px solid #bda16666;
 }
 
@@ -158,12 +247,7 @@ button {
 /* PANELS */
 
 .panel {
-  background:
-    linear-gradient(
-      130deg,
-      #11412b,
-      #072319
-    );
+  background: linear-gradient(130deg, #11412b, #072319);
   border: 1px solid #bda166;
   border-radius: 11px;
   padding: 16px;
@@ -359,8 +443,6 @@ button {
   line-height: 1.5;
 }
 
-/* MOBILE */
-
 @media (max-width: 390px) {
   .page-head h1,
   .skins-header h1 {
@@ -383,18 +465,15 @@ button {
 
 <main class="app">
 
-<!-- ================= HOME ================= -->
+<!-- HOME -->
 
-<section
-  id="home"
-  class="screen active"
-  aria-label="Home">
-
+<section id="home" class="screen active" aria-label="Home">
   <div class="art">
 
     <img
       src="tgsl_assets/tgsl-home-art.png"
-      alt="Taylorville SGL home screen">
+      alt="Taylorville SGL home screen"
+    >
 
     <button
       class="hit"
@@ -455,55 +534,37 @@ button {
   </div>
 </section>
 
-<!-- ================= STANDINGS ================= -->
+<!-- STANDINGS -->
 
 <section id="standings" class="screen">
-
   <header class="page-head">
-    <button class="back" onclick="show('home')">
-      ‹
-    </button>
-
+    <button class="back" onclick="show('home')">‹</button>
     <h1>League Standings</h1>
     <p>Individual and Season Rankings</p>
   </header>
 
   <div class="body">
     <div id="sglAppStandings">
-      <div class="panel">
-        Loading league standings…
-      </div>
+      <div class="panel">Loading league standings…</div>
     </div>
   </div>
-
 </section>
 
-<!-- ================= GROSS SKINS ================= -->
+<!-- GROSS SKINS -->
 
 <section id="skins" class="screen">
-
   <header class="skins-header">
-
-    <button
-      class="skins-back"
-      onclick="show('home')">
-      ‹
-    </button>
-
+    <button class="skins-back" onclick="show('home')">‹</button>
     <h1>Gross Skins</h1>
     <p>Weekly Winners &amp; Season Results</p>
-
   </header>
 
   <div class="skins-content">
 
     <div class="skins-tabs">
-      <button
-        id="skinsWeeklyBtn"
-        class="active">
+      <button id="skinsWeeklyBtn" class="active">
         Weekly Skins
       </button>
-
       <button id="skinsSeasonBtn">
         Season Skins
       </button>
@@ -524,32 +585,18 @@ button {
       Loading skins results…
     </div>
 
-    <div
-      id="skinsWeeklySummary"
-      class="skins-box">
-    </div>
-
-    <div
-      id="skinsWeeklyLeaders"
-      class="skins-box">
-    </div>
+    <div id="skinsWeeklySummary" class="skins-box"></div>
+    <div id="skinsWeeklyLeaders" class="skins-box"></div>
 
     <div class="skins-box">
-
       <h2>Skins Results</h2>
 
       <div class="skins-table-wrap">
-
         <table class="skins-table">
-
           <thead id="skinsHead"></thead>
-
           <tbody id="skinsBody"></tbody>
-
         </table>
-
       </div>
-
     </div>
 
     <div
@@ -558,115 +605,67 @@ button {
     </div>
 
   </div>
-
 </section>
 
-<!-- ================= PAR 3 ================= -->
+<!-- PAR 3 -->
 
 <section id="par3" class="screen">
-
   <header class="page-head">
-
-    <button class="back" onclick="show('home')">
-      ‹
-    </button>
-
+    <button class="back" onclick="show('home')">‹</button>
     <h1>Par 3 Challenge</h1>
     <p>Closest to the Pin Leaderboard</p>
-
   </header>
 
   <div class="body">
-
     <div id="sglAppPar3">
-
-      <div class="panel">
-        Loading Par 3 results…
-      </div>
-
+      <div class="panel">Loading Par 3 results…</div>
     </div>
-
   </div>
-
 </section>
 
-<!-- ================= TEAMS ================= -->
+<!-- TEAMS -->
 
 <section id="teams" class="screen">
-
   <header class="page-head">
-
-    <button class="back" onclick="show('home')">
-      ‹
-    </button>
-
+    <button class="back" onclick="show('home')">‹</button>
     <h1>Team Standings</h1>
     <p>Weekly and Season Team Rankings</p>
-
   </header>
 
   <div class="body">
-
     <div id="sglAppTeams">
-
-      <div class="panel">
-        Loading team standings…
-      </div>
-
+      <div class="panel">Loading team standings…</div>
     </div>
-
   </div>
-
 </section>
 
-<!-- ================= ARCHIVES ================= -->
+<!-- ARCHIVES -->
 
 <section id="archives" class="screen">
-
   <header class="page-head">
-
-    <button class="back" onclick="show('home')">
-      ‹
-    </button>
-
+    <button class="back" onclick="show('home')">‹</button>
     <h1>Results &amp; Archives</h1>
     <p>Completed Tournaments &amp; Schedule</p>
-
   </header>
 
   <div class="body">
-
     <div id="sglAppArchives">
-
-      <div class="panel">
-        Loading tournament results…
-      </div>
-
+      <div class="panel">Loading tournament results…</div>
     </div>
-
   </div>
-
 </section>
 
-<!-- ================= LIVE ================= -->
+<!-- LIVE -->
 
 <section id="live" class="screen">
-
   <header class="page-head">
-
-    <button class="back" onclick="show('home')">
-      ‹
-    </button>
-
+    <button class="back" onclick="show('home')">‹</button>
     <h1>Watch Live</h1>
     <p>Taylorville Simulator Golf League</p>
-
   </header>
 
   <div class="body">
-
     <div class="panel">
-
       <h2>Live Golf Broadcast</h2>
 
       <p class="muted">
@@ -677,77 +676,49 @@ button {
       <a class="link" href="watch-live.html">
         Open Live Stream
       </a>
-
     </div>
-
   </div>
-
 </section>
 
-<!-- ================= LEAGUE INFO ================= -->
+<!-- LEAGUE INFORMATION -->
 
 <section id="info" class="screen">
-
   <header class="page-head">
-
-    <button class="back" onclick="show('home')">
-      ‹
-    </button>
-
+    <button class="back" onclick="show('home')">‹</button>
     <h1>League Information</h1>
     <p>Taylorville Simulator Golf League</p>
-
   </header>
 
   <div class="body">
-
     <div class="panel">
-
       <h2>League Resources</h2>
 
-      <a
-        class="link"
-        href="index.html">
+      <a class="link" href="index.html">
         Full League Website
       </a>
 
-      <a
-        class="link"
-        href="booking.html">
+      <a class="link" href="booking.html">
         Book Simulator Time
       </a>
 
-      <a
-        class="link"
-        href="watch-live.html">
+      <a class="link" href="watch-live.html">
         Watch Live Golf
       </a>
-
     </div>
-
   </div>
-
 </section>
 
-<!-- ================= MORE ================= -->
+<!-- MORE -->
 
 <section id="more" class="screen">
-
   <header class="page-head">
-
-    <button class="back" onclick="show('home')">
-      ‹
-    </button>
-
+    <button class="back" onclick="show('home')">‹</button>
     <h1>More</h1>
     <p>League Pages &amp; Resources</p>
-
   </header>
 
   <div class="body">
-
     <div class="panel">
-
       <h2>League Pages</h2>
 
       <button
@@ -784,19 +755,15 @@ button {
         onclick="show('info')">
         League Information
       </button>
-
     </div>
-
   </div>
-
 </section>
 
 </main>
 
-<!-- ================= BOTTOM NAV ================= -->
+<!-- BOTTOM NAVIGATION -->
 
 <nav class="nav" aria-label="Main navigation">
-
   <div class="nav-inner">
 
     <button
@@ -835,10 +802,9 @@ button {
     </button>
 
   </div>
-
 </nav>
 
-<!-- ================= NAVIGATION SCRIPT ================= -->
+<!-- APP NAVIGATION -->
 
 <script>
 function show(id) {
@@ -859,12 +825,7 @@ function show(id) {
       );
     });
 
-  history.replaceState(
-    null,
-    "",
-    "#" + id
-  );
-
+  history.replaceState(null, "", "#" + id);
   window.scrollTo(0, 0);
 }
 
@@ -886,10 +847,9 @@ if (initialScreen) {
 }
 </script>
 
-<!-- ================= LIVE DATA ================= -->
+<!-- LIVE LEAGUE DATA -->
 
 <script src="skins.js?v=4" defer></script>
-
 <script src="app-leaderboards.js?v=1" defer></script>
 
 </body>
