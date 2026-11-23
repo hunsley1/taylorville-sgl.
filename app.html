@@ -1,0 +1,223 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07180f">
+<title>Taylorville SGL App</title>
+
+<style>
+* { box-sizing: border-box; }
+
+:root {
+  --green: #07180f;
+  --panel: #092a1a;
+  --gold: #f0c65f;
+  --text: #f7f6ed;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: var(--green);
+  color: var(--text);
+  padding-bottom: 95px;
+}
+
+.hero {
+  position: relative;
+  min-height: 310px;
+  padding: 45px 18px 35px;
+  text-align: center;
+  background:
+    linear-gradient(180deg, #00170ccc, #07180fee),
+    url("https://images.unsplash.com/photo-1535131749006-b7f58c99034b?auto=format&fit=crop&w=1200&q=85")
+    center/cover;
+}
+
+.logo {
+  font-family: Georgia, serif;
+  font-size: 23px;
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+
+.logo strong {
+  display: block;
+  font-family: Arial, sans-serif;
+  font-size: 83px;
+  font-style: italic;
+  line-height: 1;
+  color: white;
+  text-shadow: 2px 3px 0 #a18a4e;
+}
+
+.ball {
+  font-size: 28px;
+  margin: 7px;
+}
+
+.subtitle {
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 3px;
+}
+
+.welcome {
+  margin: 25px 0 0;
+  font-size: 21px;
+  font-weight: bold;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding: 20px 16px;
+}
+
+.tile {
+  min-height: 119px;
+  border: 1px solid #a58c53;
+  border-radius: 11px;
+  background: linear-gradient(145deg, #0d3926, #042015);
+  color: white;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+  text-align: center;
+  font-weight: bold;
+  font-size: 15px;
+}
+
+.tile:active {
+  background: #1b5338;
+}
+
+.tile .symbol {
+  color: var(--gold);
+  font-size: 38px;
+  line-height: 1;
+}
+
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-around;
+  padding: 12px 3px calc(10px + env(safe-area-inset-bottom));
+  background: #03180f;
+  border-top: 1px solid #cba95a55;
+  z-index: 100;
+}
+
+.bottom-nav a {
+  color: #f5f5f1;
+  text-decoration: none;
+  text-align: center;
+  font-size: 11px;
+  min-width: 55px;
+}
+
+.bottom-nav a.active {
+  color: var(--gold);
+}
+
+.bottom-nav span {
+  display: block;
+  font-size: 25px;
+  margin-bottom: 5px;
+}
+
+@media (min-width: 650px) {
+  .tiles {
+    max-width: 650px;
+    margin: auto;
+  }
+  .hero { min-height: 360px; }
+}
+</style>
+</head>
+
+<body>
+
+<header class="hero">
+  <div class="logo">
+    TAYLORVILLE
+    <strong>SGL</strong>
+  </div>
+  <div class="ball">⛳</div>
+  <div class="subtitle">SIMULATOR GOLF LEAGUE</div>
+  <div class="welcome">Welcome to Taylorville SGL</div>
+</header>
+
+<main class="tiles">
+
+  <a class="tile" href="index.html#standings">
+    <span class="symbol">🏆</span>
+    Standings
+  </a>
+
+  <a class="tile" href="index.html#skins">
+    <span class="symbol">🪙</span>
+    Skins
+  </a>
+
+  <a class="tile" href="index.html#par3">
+    <span class="symbol">⛳</span>
+    Par 3 Challenge
+  </a>
+
+  <a class="tile" href="index.html#teams">
+    <span class="symbol">👥</span>
+    Teams
+  </a>
+
+  <a class="tile" href="booking.html">
+    <span class="symbol">📅</span>
+    Schedule / Book Simulator
+  </a>
+
+  <a class="tile" href="watch-live.html">
+    <span class="symbol">▶</span>
+    Live Stream
+  </a>
+
+  <a class="tile" href="index.html#archives">
+    <span class="symbol">📊</span>
+    Results & Archives
+  </a>
+
+  <a class="tile" href="index.html#league-info">
+    <span class="symbol">ℹ</span>
+    League Info
+  </a>
+
+</main>
+
+<nav class="bottom-nav">
+  <a class="active" href="app.html">
+    <span>⌂</span>Home
+  </a>
+  <a href="index.html#standings">
+    <span>🏆</span>Standings
+  </a>
+  <a href="booking.html">
+    <span>▦</span>Book
+  </a>
+  <a href="watch-live.html">
+    <span>▶</span>Live
+  </a>
+  <a href="index.html">
+    <span>•••</span>More
+  </a>
+</nav>
+
+</body>
+</html>
