@@ -28,6 +28,7 @@
   let mode = "weekly";
   let loaded = false;
   let error = "";
+  let manualWeekSelection = false;
 
   const validWeek = n =>
     Number.isInteger(n) && n > 0;
@@ -87,7 +88,6 @@
       return rowFn(item, rank);
     }).join("");
   }
-
 
   function renderWeeklyLeaders() {
     const container = $("skinsWeeklySummary");
@@ -197,8 +197,6 @@
         }`
       : "Official season totals include finalized weeks only. Provisional weekly skins are excluded.";
 
-    const columns = 4;
-
     if (error || !loaded) {
       $("skinsStatus").textContent = error
         ? "Unable to load skins results."
@@ -206,7 +204,7 @@
 
       $("skinsBody").innerHTML = `
 <tr>
-<td colspan="${columns}" class="empty${error ? " error" : ""}">
+<td colspan="4" class="empty${error ? " error" : ""}">
 ${escapeHTML(error || "Loading…")}
 </td>
 </tr>`;
@@ -220,9 +218,12 @@ ${escapeHTML(error || "Loading…")}
           a.hole_number - b.hole_number
         );
 
-      const entrants = cards.filter(
-        c => c.week_number === selectedWeek
-      ).length;
+      const entrants = new Set(
+        cards
+          .filter(c => c.week_number === selectedWeek)
+          .map(c => c.username?.trim().toLowerCase())
+          .filter(Boolean)
+      ).size;
 
       const awarded = rows.reduce(
         (sum, h) => sum + h.skins_awarded,
@@ -237,7 +238,7 @@ ${escapeHTML(error || "Loading…")}
         }`;
 
       $("skinsBody").innerHTML = rows.length
-      ? rows.map(h => `
+        ? rows.map(h => `
 <tr>
 <td class="tag">${h.hole_number}</td>
 <td>${
@@ -252,7 +253,7 @@ ${escapeHTML(error || "Loading…")}
     : h.skins_awarded || "—"
 }</td>
 </tr>`).join("")
-      : `<tr>
+        : `<tr>
 <td colspan="4" class="empty">
 No skins calculated for this week yet.
 </td>
@@ -275,7 +276,7 @@ No skins calculated for this week yet.
         ) continue;
 
         const key =
-          h.winner_username.toLowerCase();
+          h.winner_username.trim().toLowerCase();
 
         if (!totals.has(key)) {
           totals.set(key, {
@@ -286,7 +287,6 @@ No skins calculated for this week yet.
         }
 
         const item = totals.get(key);
-
         item.skins += h.skins_awarded;
         item.weekSet.add(h.week_number);
       }
@@ -383,39 +383,43 @@ No finalized skins winners yet.
 
       players = rawPlayers;
 
-      const available = new Set(
-        holes.map(h => h.week_number)
-      );
+      // The first unfinished week is the active week.
+      // Week 5 is currently active because Weeks 1-4
+      // have been finalized.
+      const activeWeek = weeks.find(
+        w => !w.finalized
+      )?.week_number ?? weeks.at(-1)?.week_number ?? null;
 
-      const latest = weeks
-        .filter(w => available.has(w.week_number))
-        .at(-1)?.week_number;
-
+      // Automatically follow the active week unless
+      // someone manually selects a historical week.
       if (
-        selectedWeek === null ||
+        !manualWeekSelection ||
         !weeks.some(
           w => w.week_number === selectedWeek
         )
       ) {
-        selectedWeek =
-          latest ??
-          weeks.at(-1)?.week_number ??
-          null;
+        selectedWeek = activeWeek;
+        manualWeekSelection = false;
       }
+
+      const available = new Set(
+        holes.map(h => h.week_number)
+      );
 
       $("skinsWeek").innerHTML =
         weeks.map(w => `
 <option value="${w.week_number}">
 Week ${w.week_number}${
-  available.has(w.week_number)
-    ? " · Results"
-    : ""
+  w.week_number === activeWeek
+    ? " · Current"
+    : available.has(w.week_number)
+      ? " · Results"
+      : ""
 }
 </option>`).join("");
 
       if (selectedWeek !== null) {
-        $("skinsWeek").value =
-          String(selectedWeek);
+        $("skinsWeek").value = String(selectedWeek);
       }
 
       loaded = true;
@@ -445,15 +449,14 @@ Week ${w.week_number}${
 
   $("skinsWeek").onchange = e => {
     selectedWeek = Number(e.target.value);
+    manualWeekSelection = true;
     render();
   };
 
   load();
 
   setInterval(() => {
-    if (
-      document.visibilityState === "visible"
-    ) {
+    if (document.visibilityState === "visible") {
       load();
     }
   }, 60000);
@@ -461,9 +464,7 @@ Week ${w.week_number}${
   document.addEventListener(
     "visibilitychange",
     () => {
-      if (
-        document.visibilityState === "visible"
-      ) {
+      if (document.visibilityState === "visible") {
         load();
       }
     }
