@@ -6,234 +6,694 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#041b10">
 <title>Taylorville SGL</title>
+
 <style>
 *{box-sizing:border-box}
 html{background:#03170e}
-body{margin:0;color:#f8f6ee;font-family:system-ui,-apple-system,Arial,sans-serif;background:#03170e}
-button,a{font:inherit;-webkit-tap-highlight-color:transparent}
+body{
+  margin:0;
+  color:#f8f6ee;
+  font-family:system-ui,-apple-system,Arial,sans-serif;
+  background:#03170e;
+}
+button,a{
+  font:inherit;
+  -webkit-tap-highlight-color:transparent;
+}
 button{cursor:pointer}
-.app{max-width:620px;margin:auto;padding-bottom:calc(92px + env(safe-area-inset-bottom))}
+.app{
+  max-width:620px;
+  margin:auto;
+  padding-bottom:calc(92px + env(safe-area-inset-bottom));
+}
 .screen{display:none}
 .screen.active{display:block}
 .art{position:relative;width:100%;line-height:0}
 .art img{display:block;width:100%;height:auto}
-.hit{position:absolute;display:block;background:transparent;border:0;padding:0;cursor:pointer;border-radius:9px}
-.hit:focus-visible{outline:3px solid #f7d47e;outline-offset:-4px}
-.nav{position:fixed;bottom:0;left:0;right:0;z-index:10;background:#001b0e;border-top:1px solid #d9b45c}
-.nav-inner{max-width:620px;margin:auto;position:relative;aspect-ratio:958/207;background:url('tgsl_assets/tgsl-bottom-nav.png') center/100% 100% no-repeat}
-.nav a,.nav button{position:absolute;top:0;height:100%;width:20%;border:0;background:transparent;color:transparent;overflow:hidden;text-decoration:none}
-.nav a:focus-visible,.nav button:focus-visible{outline:2px solid gold;outline-offset:-3px}
+.hit{
+  position:absolute;
+  display:block;
+  background:transparent;
+  border:0;
+  padding:0;
+  cursor:pointer;
+  border-radius:9px;
+}
+.hit:focus-visible{
+  outline:3px solid #f7d47e;
+  outline-offset:-4px;
+}
+.nav{
+  position:fixed;
+  bottom:0;
+  left:0;
+  right:0;
+  z-index:10;
+  background:#001b0e;
+  border-top:1px solid #d9b45c;
+}
+.nav-inner{
+  max-width:620px;
+  margin:auto;
+  position:relative;
+  aspect-ratio:958/207;
+  background:url('tgsl_assets/tgsl-bottom-nav.png')
+    center/100% 100% no-repeat;
+}
+.nav a,.nav button{
+  position:absolute;
+  top:0;
+  height:100%;
+  width:20%;
+  border:0;
+  background:transparent;
+  color:transparent;
+  overflow:hidden;
+  text-decoration:none;
+}
+.nav a:focus-visible,.nav button:focus-visible{
+  outline:2px solid gold;
+  outline-offset:-3px;
+}
 .nav .n1{left:0}
 .nav .n2{left:20%}
 .nav .n3{left:40%}
 .nav .n4{left:60%}
 .nav .n5{left:80%}
-.page-head{padding:45px 18px 26px;text-align:center;background:linear-gradient(#16472c,#041b10)}
-.back{float:left;color:#f5d17d;background:none;border:0;font-size:26px}
-.page-head h1{font:normal 30px Georgia,serif;margin:18px 0 8px}
-.page-head p{color:#d6d8c8;font-size:13px}
+
+.page-head{
+  padding:45px 18px 26px;
+  text-align:center;
+  background:linear-gradient(#16472c,#041b10);
+}
+.back{
+  float:left;
+  color:#f5d17d;
+  background:none;
+  border:0;
+  font-size:26px;
+}
+.page-head h1{
+  font:normal 30px Georgia,serif;
+  margin:18px 0 8px;
+}
+.page-head p{
+  color:#d6d8c8;
+  font-size:13px;
+}
 .body{padding:16px}
-.panel{background:linear-gradient(130deg,#11412b,#072319);border:1px solid #bda166;border-radius:11px;padding:16px;margin-bottom:14px}
-.panel h2{font:normal 21px Georgia,serif;color:#eac77b;margin:0 0 12px}
-.panel p{color:#d4dccf;font-size:14px;line-height:1.5}
-.tabs{display:flex;gap:7px;margin:0 0 14px}
-.tabs button{flex:1;border:1px solid #bda166;border-radius:7px;padding:11px 6px;background:#09291c;color:#e7e4d5}
-.tabs button.active{background:#e8c879;color:#10281b;font-weight:800}
-.link{display:block;text-align:center;border-radius:8px;background:#d6ae60;color:#092015;text-decoration:none;padding:14px;font-weight:800}
-.row{display:flex;justify-content:space-between;border-bottom:1px solid #bda16655;padding:13px 0;font-size:14px}
+.panel{
+  background:linear-gradient(130deg,#11412b,#072319);
+  border:1px solid #bda166;
+  border-radius:11px;
+  padding:16px;
+  margin-bottom:14px;
+}
+.panel h2{
+  font:normal 21px Georgia,serif;
+  color:#eac77b;
+  margin:0 0 12px;
+}
+.panel p{
+  color:#d4dccf;
+  font-size:14px;
+  line-height:1.5;
+}
+.tabs{
+  display:flex;
+  gap:7px;
+  margin:0 0 14px;
+}
+.tabs button{
+  flex:1;
+  border:1px solid #bda166;
+  border-radius:7px;
+  padding:11px 6px;
+  background:#09291c;
+  color:#e7e4d5;
+}
+.tabs button.active{
+  background:#e8c879;
+  color:#10281b;
+  font-weight:800;
+}
+.link{
+  display:block;
+  text-align:center;
+  border-radius:8px;
+  background:#d6ae60;
+  color:#092015;
+  text-decoration:none;
+  padding:14px;
+  font-weight:800;
+}
+.row{
+  display:flex;
+  justify-content:space-between;
+  border-bottom:1px solid #bda16655;
+  padding:13px 0;
+  font-size:14px;
+}
 .row:last-child{border-bottom:0}
 .muted{font-size:12px;color:#c1cbbd}
-.video{aspect-ratio:16/9;background:linear-gradient(135deg,#315b36,#102f20);display:grid;place-items:center;font-size:44px;color:#ebd08a;border:1px solid #c2a86e;border-radius:9px}
-.menu{display:block;width:100%;background:#0b3020;color:#f6f2e7;border:1px solid #987e4f;border-radius:8px;text-align:left;padding:15px;margin-bottom:9px}
-.notice{border-left:3px solid #d6b46b;padding-left:12px;color:#d1d7ca;font-size:13px;line-height:1.5}
+.video{
+  aspect-ratio:16/9;
+  background:linear-gradient(135deg,#315b36,#102f20);
+  display:grid;
+  place-items:center;
+  font-size:44px;
+  color:#ebd08a;
+  border:1px solid #c2a86e;
+  border-radius:9px;
+}
+.menu{
+  display:block;
+  width:100%;
+  background:#0b3020;
+  color:#f6f2e7;
+  border:1px solid #987e4f;
+  border-radius:8px;
+  text-align:left;
+  padding:15px;
+  margin-bottom:9px;
+}
+.notice{
+  border-left:3px solid #d6b46b;
+  padding-left:12px;
+  color:#d1d7ca;
+  font-size:13px;
+  line-height:1.5;
+}
+
+/* Gross Skins screen */
+.skins-header{
+  position:relative;
+  background:linear-gradient(180deg,#07311f,#041b10);
+  border-bottom:1px solid #bd9d58;
+  padding:21px 18px 19px;
+  text-align:center;
+}
+.skins-header h1{
+  font-size:20px;
+  font-weight:750;
+  margin:0;
+}
+.skins-back{
+  position:absolute;
+  left:15px;
+  top:9px;
+  border:0;
+  background:none;
+  color:#f4e5c3;
+  font-size:38px;
+  line-height:1;
+}
+.skins-content{padding:16px 14px 25px}
+.skins-tabs{margin-bottom:12px}
+.skins-tabs button{padding:12px}
+.week-label{
+  display:block;
+  font-size:11px;
+  color:#d5c295;
+  margin-bottom:6px;
+}
+#skinsWeek{
+  width:100%;
+  padding:12px 10px;
+  border:1px solid #ad9158;
+  border-radius:6px;
+  background:#08251a;
+  color:#f6f3e8;
+  font-size:14px;
+  margin-bottom:10px;
+}
+.skins-status{
+  font-size:12px;
+  color:#c9d6c9;
+  line-height:1.5;
+  margin:6px 0 15px;
+}
+.skins-box{
+  border:1px solid #a48b56;
+  border-radius:8px;
+  overflow:hidden;
+  margin-bottom:15px;
+  background:#062218;
+}
+.skins-box h2{
+  font-size:14px;
+  background:#10452d;
+  color:#f6f1e2;
+  margin:0;
+  padding:10px 11px;
+  font-weight:700;
+}
+.skins-table-wrap{
+  width:100%;
+  overflow-x:auto;
+}
+.skins-table{
+  border-collapse:collapse;
+  width:100%;
+  font-size:12px;
+  text-align:left;
+}
+.skins-table th{
+  font-size:10px;
+  letter-spacing:.4px;
+  background:#0b3725;
+  color:#e5d9af;
+  padding:9px 7px;
+  white-space:nowrap;
+}
+.skins-table td{
+  border-top:1px solid #a08c583b;
+  padding:10px 7px;
+  overflow-wrap:anywhere;
+}
+.skins-table th:first-child,
+.skins-table td:first-child{
+  width:14%;
+  text-align:center;
+}
+.skins-table th:last-child,
+.skins-table td:last-child{
+  text-align:center;
+}
+.skins-table .tag{
+  color:#f0c46b;
+  font-weight:800;
+}
+.skins-table .empty{
+  text-align:center!important;
+  color:#d3dbd0;
+  padding:22px 9px;
+}
+.skins-table .error{color:#ffb4a7}
+.skins-footnote{
+  font-size:11px;
+  line-height:1.6;
+  color:#b8c7b8;
+  margin:12px 3px;
+}
 </style>
 </head>
+
 <body>
 <div class="app">
 
+<!-- HOME SCREEN -->
 <section id="home" class="screen active" aria-label="Home">
   <div class="art">
-    <img src="tgsl_assets/tgsl-home-art.png" alt="Taylorville SGL home screen with eight green and gold navigation tiles">
+    <img
+      src="tgsl_assets/tgsl-home-art.png"
+      alt="Taylorville SGL home screen"
+    >
 
-    <button class="hit" style="left:4%;top:35.8%;width:43%;height:13.7%" onclick="show('standings')" aria-label="Standings"></button>
-    <button class="hit" style="left:50%;top:35.8%;width:44%;height:13.7%" onclick="show('skins')" aria-label="Skins"></button>
+    <button class="hit"
+      style="left:4%;top:35.8%;width:43%;height:13.7%"
+      onclick="show('standings')"
+      aria-label="Standings"></button>
 
-    <button class="hit" style="left:4%;top:50.6%;width:43%;height:13.7%" onclick="show('par3')" aria-label="Par 3 Challenge"></button>
-    <button class="hit" style="left:50%;top:50.6%;width:44%;height:13.7%" onclick="show('teams')" aria-label="Teams"></button>
+    <button class="hit"
+      style="left:50%;top:35.8%;width:44%;height:13.7%"
+      onclick="show('skins')"
+      aria-label="Skins"></button>
 
-    <a class="hit" style="left:4%;top:65.3%;width:43%;height:13.7%" href="booking.html" aria-label="Schedule and book simulator"></a>
-    <a class="hit" style="left:50%;top:65.3%;width:44%;height:13.7%" href="watch-live.html" aria-label="Live stream"></a>
+    <button class="hit"
+      style="left:4%;top:50.6%;width:43%;height:13.7%"
+      onclick="show('par3')"
+      aria-label="Par 3 Challenge"></button>
 
-    <button class="hit" style="left:4%;top:80%;width:43%;height:13.7%" onclick="show('archives')" aria-label="Results and archives"></button>
-    <button class="hit" style="left:50%;top:80%;width:44%;height:13.7%" onclick="show('info')" aria-label="League information"></button>
+    <button class="hit"
+      style="left:50%;top:50.6%;width:44%;height:13.7%"
+      onclick="show('teams')"
+      aria-label="Teams"></button>
+
+    <a class="hit"
+      style="left:4%;top:65.3%;width:43%;height:13.7%"
+      href="booking.html"
+      aria-label="Book Simulator"></a>
+
+    <a class="hit"
+      style="left:50%;top:65.3%;width:44%;height:13.7%"
+      href="watch-live.html"
+      aria-label="Live Stream"></a>
+
+    <button class="hit"
+      style="left:4%;top:80%;width:43%;height:13.7%"
+      onclick="show('archives')"
+      aria-label="Results and Archives"></button>
+
+    <button class="hit"
+      style="left:50%;top:80%;width:44%;height:13.7%"
+      onclick="show('info')"
+      aria-label="League Information"></button>
   </div>
 </section>
 
+<!-- STANDINGS -->
 <section id="standings" class="screen">
   <header class="page-head">
-    <button class="back" onclick="show('home')" aria-label="Back">‹</button>
+    <button class="back" onclick="show('home')">‹</button>
     <h1>League Standings</h1>
     <p>Combined, Individual, and Team Rankings</p>
   </header>
+
   <main class="body">
     <div class="panel">
       <h2>Season Leaderboard</h2>
+
       <div class="tabs">
-        <button class="active" onclick="tab(this)">Combined</button>
-        <button onclick="tab(this)">Individual</button>
-        <button onclick="tab(this)">Teams</button>
+        <button class="active" onclick="tab(this)">
+          Combined
+        </button>
+        <button onclick="tab(this)">
+          Individual
+        </button>
+        <button onclick="tab(this)">
+          Teams
+        </button>
       </div>
-      <p class="notice">This is the new screen design. We'll connect your existing Supabase standings after you approve the appearance.</p>
+
+      <p class="notice">
+        Live standings will be connected to your
+        existing Supabase standings.
+      </p>
     </div>
   </main>
 </section>
 
+<!-- GROSS SKINS -->
 <section id="skins" class="screen">
-  <header class="page-head">
-    <button class="back" onclick="show('home')" aria-label="Back">‹</button>
+  <header class="skins-header">
+    <button
+      class="skins-back"
+      onclick="show('home')"
+      aria-label="Back to home">‹</button>
+
     <h1>Gross Skins</h1>
-    <p>Weekly &amp; Season Results</p>
   </header>
-  <main class="body">
-    <div class="tabs">
-      <button class="active" onclick="tab(this)">Weekly</button>
-      <button onclick="tab(this)">Season</button>
+
+  <main class="skins-content">
+
+    <div class="tabs skins-tabs">
+      <button
+        id="skinsWeeklyBtn"
+        class="active"
+        type="button">
+        Weekly
+      </button>
+
+      <button
+        id="skinsSeasonBtn"
+        type="button">
+        Season
+      </button>
     </div>
-    <div class="panel">
+
+    <label class="week-label" for="skinsWeek">
+      Select tournament week
+    </label>
+
+    <select id="skinsWeek" aria-label="Select week">
+      <option>Loading weeks…</option>
+    </select>
+
+    <p
+      id="skinsStatus"
+      class="skins-status"
+      role="status">
+      Loading gross skins…
+    </p>
+
+    <!-- WEEKLY LEADERS -->
+    <div id="skinsWeeklySummary" class="skins-box">
       <h2>Weekly Skins Leaders</h2>
-      <p class="notice">This screen will show your actual skins winners and totals once connected to Supabase.</p>
-    </div>
-    <div class="panel">
-      <h2>Hole-by-Hole Results</h2>
-      <div class="row">
-        <strong>HOLE</strong>
-        <strong>WINNER</strong>
-        <strong>SKINS</strong>
+
+      <div class="skins-table-wrap">
+        <table class="skins-table">
+          <thead>
+            <tr>
+              <th>POS</th>
+              <th>PLAYER</th>
+              <th>HOLES</th>
+              <th>SKINS</th>
+            </tr>
+          </thead>
+
+          <tbody id="skinsWeeklyLeaders">
+            <tr>
+              <td colspan="4" class="empty">
+                Loading…
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-      <p class="muted">Results will appear here from your existing league data.</p>
     </div>
+
+    <!-- HOLE RESULTS / SEASON TOTALS -->
+    <div class="skins-box">
+      <h2 id="skinsResultsTitle">
+        Hole-by-Hole Results / Season Totals
+      </h2>
+
+      <div class="skins-table-wrap">
+        <table class="skins-table">
+          <thead id="skinsHead">
+            <tr>
+              <th>HOLE</th>
+              <th>WINNER</th>
+              <th>GROSS</th>
+              <th>SKINS</th>
+            </tr>
+          </thead>
+
+          <tbody id="skinsBody">
+            <tr>
+              <td colspan="4" class="empty">
+                Loading…
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <p id="skinsFootnote" class="skins-footnote"></p>
+
   </main>
 </section>
 
+<!-- PAR 3 CHALLENGE -->
 <section id="par3" class="screen">
   <header class="page-head">
     <button class="back" onclick="show('home')">‹</button>
     <h1>Par 3 Challenge</h1>
     <p>Challenge Rankings</p>
   </header>
+
   <main class="body">
     <div class="panel">
       <h2>Par 3 Leaderboard</h2>
-      <p class="notice">Your existing Par 3 standings will be connected here.</p>
+      <p class="notice">
+        Your existing Par 3 standings will be connected here.
+      </p>
     </div>
   </main>
 </section>
 
+<!-- TEAMS -->
 <section id="teams" class="screen">
   <header class="page-head">
     <button class="back" onclick="show('home')">‹</button>
     <h1>League Teams</h1>
     <p>Rosters and Rankings</p>
   </header>
+
   <main class="body">
     <div class="panel">
       <h2>Team Standings</h2>
-      <p class="notice">Your existing team data will be connected here.</p>
+      <p class="notice">
+        Your existing team data will be connected here.
+      </p>
     </div>
   </main>
 </section>
 
+<!-- LIVE STREAM -->
 <section id="live" class="screen">
   <header class="page-head">
     <button class="back" onclick="show('home')">‹</button>
     <h1>Live Stream</h1>
     <p>Watch Taylorville SGL</p>
   </header>
+
   <main class="body">
     <div class="panel">
       <div class="video">▶</div>
-      <h2 style="margin-top:18px">Taylorville SGL Live Golf</h2>
-      <p>Watch your GSPro tournaments and league events.</p>
-      <a class="link" href="watch-live.html">Watch the Live Stream</a>
+
+      <h2 style="margin-top:18px">
+        Taylorville SGL Live Golf
+      </h2>
+
+      <p>
+        Watch your GSPro tournaments and league events.
+      </p>
+
+      <a class="link" href="watch-live.html">
+        Watch the Live Stream
+      </a>
     </div>
   </main>
 </section>
 
+<!-- ARCHIVES -->
 <section id="archives" class="screen">
   <header class="page-head">
     <button class="back" onclick="show('home')">‹</button>
     <h1>Results &amp; Archives</h1>
     <p>Past Weeks and Seasons</p>
   </header>
+
   <main class="body">
     <div class="panel">
       <h2>League Results</h2>
-      <p class="notice">Your completed tournaments and historical results will appear here.</p>
+      <p class="notice">
+        Your completed tournaments and historical
+        results will appear here.
+      </p>
     </div>
   </main>
 </section>
 
+<!-- LEAGUE INFORMATION -->
 <section id="info" class="screen">
   <header class="page-head">
     <button class="back" onclick="show('home')">‹</button>
     <h1>League Info</h1>
     <p>Taylorville Simulator Golf League</p>
   </header>
+
   <main class="body">
     <div class="panel">
       <h2>Welcome to Taylorville SGL</h2>
-      <p>Standings, skins, league competition, simulator reservations, and live golf in one place.</p>
-      <a class="link" href="booking.html">Book Simulator Time</a>
+
+      <p>
+        Standings, skins, league competition,
+        simulator reservations, and live golf
+        in one place.
+      </p>
+
+      <a class="link" href="booking.html">
+        Book Simulator Time
+      </a>
     </div>
   </main>
 </section>
 
+<!-- MORE -->
 <section id="more" class="screen">
   <header class="page-head">
     <button class="back" onclick="show('home')">‹</button>
     <h1>More</h1>
     <p>Explore the League</p>
   </header>
+
   <main class="body">
-    <button class="menu" onclick="show('skins')">Gross Skins ›</button>
-    <button class="menu" onclick="show('par3')">Par 3 Challenge ›</button>
-    <button class="menu" onclick="show('teams')">League Teams ›</button>
-    <button class="menu" onclick="show('archives')">Results &amp; Archives ›</button>
-    <button class="menu" onclick="show('info')">League Information ›</button>
+    <button class="menu" onclick="show('skins')">
+      Gross Skins ›
+    </button>
+
+    <button class="menu" onclick="show('par3')">
+      Par 3 Challenge ›
+    </button>
+
+    <button class="menu" onclick="show('teams')">
+      League Teams ›
+    </button>
+
+    <button class="menu" onclick="show('archives')">
+      Results &amp; Archives ›
+    </button>
+
+    <button class="menu" onclick="show('info')">
+      League Information ›
+    </button>
   </main>
 </section>
 
 </div>
 
+<!-- BOTTOM NAVIGATION -->
 <nav class="nav" aria-label="Bottom navigation">
   <div class="nav-inner">
-    <button class="n1" onclick="show('home')" aria-label="Home">Home</button>
-    <button class="n2" onclick="show('standings')" aria-label="Standings">Standings</button>
-    <a class="n3" href="booking.html" aria-label="Book">Book</a>
-    <button class="n4" onclick="show('live')" aria-label="Live">Live</button>
-    <button class="n5" onclick="show('more')" aria-label="More">More</button>
+
+    <button class="n1"
+      onclick="show('home')"
+      aria-label="Home">
+      Home
+    </button>
+
+    <button class="n2"
+      onclick="show('standings')"
+      aria-label="Standings">
+      Standings
+    </button>
+
+    <a class="n3"
+      href="booking.html"
+      aria-label="Book">
+      Book
+    </a>
+
+    <button class="n4"
+      onclick="show('live')"
+      aria-label="Live">
+      Live
+    </button>
+
+    <button class="n5"
+      onclick="show('more')"
+      aria-label="More">
+      More
+    </button>
+
   </div>
 </nav>
 
 <script>
-function show(id){
-  const s=document.getElementById(id);
-  if(!s||!s.classList.contains('screen'))return;
-  document.querySelectorAll('.screen').forEach(x=>
-    x.classList.toggle('active',x.id===id)
-  );
-  history.replaceState(null,'','#'+id);
-  scrollTo(0,0);
+function show(id) {
+  const s = document.getElementById(id);
+
+  if (!s || !s.classList.contains('screen')) {
+    return;
+  }
+
+  document.querySelectorAll('.screen').forEach(x => {
+    x.classList.toggle('active', x.id === id);
+  });
+
+  history.replaceState(null, '', '#' + id);
+  scrollTo(0, 0);
 }
 
-function tab(b){
-  b.parentElement.querySelectorAll('button').forEach(x=>
-    x.classList.toggle('active',x===b)
-  );
+function tab(b) {
+  b.parentElement.querySelectorAll('button').forEach(x => {
+    x.classList.toggle('active', x === b);
+  });
 }
 
-const initial=location.hash.slice(1);
-if(initial)show(initial);
+const initial = location.hash.slice(1);
+
+if (initial) {
+  show(initial);
+}
 </script>
+
+<!-- EXISTING SKINS CALCULATIONS -->
+<script src="skins.js" defer></script>
+
 </body>
 </html>
