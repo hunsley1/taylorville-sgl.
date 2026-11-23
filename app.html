@@ -4,220 +4,695 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#07180f">
-<title>Taylorville SGL App</title>
+<meta name="theme-color" content="#071b12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Taylorville SGL</title>
 
 <style>
-* { box-sizing: border-box; }
-
 :root {
-  --green: #07180f;
-  --panel: #092a1a;
-  --gold: #f0c65f;
-  --text: #f7f6ed;
+  --dark:#06170f;
+  --green:#0b291c;
+  --panel:#103323;
+  --gold:#e5c47d;
+  --gold2:#b38b47;
+  --white:#f7f4eb;
+  --muted:#b8c4b8;
 }
-
+* {box-sizing:border-box}
+html {scroll-behavior:smooth}
 body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background: var(--green);
-  color: var(--text);
-  padding-bottom: 95px;
+  margin:0;
+  background:var(--dark);
+  color:var(--white);
+  font-family:system-ui,-apple-system,Arial,sans-serif;
 }
+button,a {-webkit-tap-highlight-color:transparent}
+button {font:inherit;cursor:pointer}
+a {color:inherit;text-decoration:none}
 
-.hero {
-  position: relative;
-  min-height: 310px;
-  padding: 45px 18px 35px;
-  text-align: center;
+svg {width:25px;height:25px;stroke:currentColor;fill:none;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
+svg use {pointer-events:none}
+
+.app {
+  min-height:100dvh;
+  max-width:620px;
+  margin:auto;
+  padding-bottom:calc(92px + env(safe-area-inset-bottom));
   background:
-    linear-gradient(180deg, #00170ccc, #07180fee),
-    url("https://images.unsplash.com/photo-1535131749006-b7f58c99034b?auto=format&fit=crop&w=1200&q=85")
-    center/cover;
+    linear-gradient(180deg,rgba(3,17,10,.24),#07190f 380px),
+    url("https://images.unsplash.com/photo-1535131749006-b7f58c99034b?auto=format&fit=crop&w=1400&q=90")
+    center top/100% auto no-repeat,
+    var(--dark);
 }
-
-.logo {
-  font-family: Georgia, serif;
-  font-size: 23px;
-  font-weight: bold;
-  letter-spacing: 2px;
+.screen {display:none;animation:appear .2s ease}
+.screen.active {display:block}
+@keyframes appear {
+  from {opacity:.65;transform:translateY(5px)}
+  to {opacity:1;transform:translateY(0)}
 }
-
-.logo strong {
-  display: block;
-  font-family: Arial, sans-serif;
-  font-size: 83px;
-  font-style: italic;
-  line-height: 1;
-  color: white;
-  text-shadow: 2px 3px 0 #a18a4e;
+.topbar {
+  padding:calc(17px + env(safe-area-inset-top)) 19px 10px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
 }
-
-.ball {
-  font-size: 28px;
-  margin: 7px;
+.brand-mini {
+  font-family:Georgia,serif;
+  font-weight:bold;
+  letter-spacing:1.8px;
+  font-size:17px;
 }
-
-.subtitle {
-  font-size: 12px;
-  font-weight: bold;
-  letter-spacing: 3px;
+.brand-mini b {color:var(--gold)}
+.season {
+  font-size:10px;
+  font-weight:750;
+  color:var(--gold);
+  letter-spacing:1px;
+  border:1px solid #caa86770;
+  background:#071d14b5;
+  padding:8px 10px;
+  border-radius:20px;
 }
-
-.welcome {
-  margin: 25px 0 0;
-  font-size: 21px;
-  font-weight: bold;
+.hero {
+  text-align:center;
+  padding:17px 20px 31px;
 }
-
-.tiles {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  padding: 20px 16px;
+.emblem {
+  width:150px;
+  height:150px;
+  border:2px solid var(--gold);
+  border-radius:50%;
+  margin:7px auto 18px;
+  background:radial-gradient(circle at 50% 22%,#244a34,#06170e 78%);
+  box-shadow:0 0 0 5px #071a11a8,0 10px 35px #0009,inset 0 0 25px #0009;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  position:relative;
 }
-
+.emblem:before {
+  content:"";
+  position:absolute;
+  inset:7px;
+  border:1px solid #e5c47d65;
+  border-radius:50%;
+}
+.emblem .town {
+  font:700 12px Georgia,serif;
+  letter-spacing:2px;
+  z-index:1;
+}
+.emblem .letters {
+  font:italic bold 65px Georgia,serif;
+  line-height:1.1;
+  color:var(--gold);
+  text-shadow:1px 3px 0 #4c371c,0 0 15px #d8ae4d44;
+  z-index:1;
+}
+.emblem .league {
+  font-size:8px;
+  letter-spacing:2.3px;
+  color:#f0e1bd;
+  z-index:1;
+}
+.hero h1 {
+  font:normal 29px Georgia,serif;
+  margin:10px 0 7px;
+  text-shadow:0 2px 8px #000;
+}
+.hero p {
+  margin:0;
+  color:#e4d7b9;
+  font-size:12px;
+  letter-spacing:2px;
+  text-transform:uppercase;
+}
+.gold-rule {
+  width:75px;
+  height:2px;
+  background:linear-gradient(90deg,transparent,var(--gold),transparent);
+  margin:18px auto 0;
+}
+.content {padding:0 17px 26px}
+.eyebrow {
+  color:var(--gold);
+  text-transform:uppercase;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:2px;
+}
+.section-title {
+  font:normal 23px Georgia,serif;
+  margin:6px 0 18px;
+}
+.tile-grid {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+}
 .tile {
-  min-height: 119px;
-  border: 1px solid #a58c53;
-  border-radius: 11px;
-  background: linear-gradient(145deg, #0d3926, #042015);
-  color: white;
-  text-decoration: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 13px;
-  text-align: center;
-  font-weight: bold;
-  font-size: 15px;
+  position:relative;
+  min-height:137px;
+  padding:19px 10px 16px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  border:1px solid #b9955b8a;
+  border-radius:11px;
+  background:
+    linear-gradient(145deg,#164331ed,#071f16f5);
+  box-shadow:inset 0 1px #ffffff16,0 7px 17px #0005;
+  color:var(--white);
+  text-align:center;
 }
-
-.tile:active {
-  background: #1b5338;
+.tile:active,.tile:focus-visible {
+  background:#1d5137;
+  outline:1px solid var(--gold);
 }
-
-.tile .symbol {
-  color: var(--gold);
-  font-size: 38px;
-  line-height: 1;
+.tile:before {
+  content:"";
+  position:absolute;
+  inset:5px;
+  border:1px solid #c3a46716;
+  border-radius:7px;
+  pointer-events:none;
 }
-
+.tile svg {
+  width:37px;
+  height:37px;
+  color:var(--gold);
+  filter:drop-shadow(0 2px 5px #0008);
+}
+.tile span {
+  font-size:13px;
+  font-weight:750;
+  line-height:1.35;
+  max-width:140px;
+}
+.tile small {
+  font-size:10px;
+  color:#c1cbbf;
+  font-weight:400;
+  margin-top:-7px;
+}
+.footnote {
+  text-align:center;
+  margin:25px 0 0;
+  color:#b2a47f;
+  font:italic 12px Georgia,serif;
+}
 .bottom-nav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  justify-content: space-around;
-  padding: 12px 3px calc(10px + env(safe-area-inset-bottom));
-  background: #03180f;
-  border-top: 1px solid #cba95a55;
-  z-index: 100;
+  position:fixed;
+  bottom:0;
+  left:0;
+  right:0;
+  z-index:50;
+  display:flex;
+  justify-content:center;
+  background:#06170ff7;
+  border-top:1px solid #c6a05e80;
+  box-shadow:0 -8px 22px #0005;
+  padding-bottom:env(safe-area-inset-bottom);
 }
-
-.bottom-nav a {
-  color: #f5f5f1;
-  text-decoration: none;
-  text-align: center;
-  font-size: 11px;
-  min-width: 55px;
+.nav-inner {
+  width:100%;
+  max-width:620px;
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
 }
-
-.bottom-nav a.active {
-  color: var(--gold);
+.nav-item {
+  border:0;
+  background:none;
+  color:#aab9aa;
+  padding:11px 3px 12px;
+  min-height:68px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  font-size:10px;
+  font-weight:650;
 }
-
-.bottom-nav span {
-  display: block;
-  font-size: 25px;
-  margin-bottom: 5px;
+.nav-item svg {width:23px;height:23px}
+.nav-item.active {color:var(--gold)}
+.nav-item.active:before {
+  content:"";
+  width:28px;
+  height:2px;
+  background:var(--gold);
+  position:absolute;
+  top:0;
 }
-
-@media (min-width: 650px) {
-  .tiles {
-    max-width: 650px;
-    margin: auto;
-  }
-  .hero { min-height: 360px; }
+.page-head {
+  padding:38px 20px 23px;
+  text-align:center;
+  background:linear-gradient(180deg,#05170dbb,#07190fef);
+}
+.page-head .page-icon {
+  width:46px;
+  height:46px;
+  color:var(--gold);
+  margin-bottom:12px;
+}
+.page-head h2 {
+  font:normal 31px Georgia,serif;
+  margin:0 0 8px;
+}
+.page-head p {
+  color:#c8d2c4;
+  font-size:13px;
+  margin:0;
+}
+.panel {
+  border:1px solid #aa8b5370;
+  border-radius:12px;
+  background:linear-gradient(145deg,#123726f5,#081e15f5);
+  padding:18px;
+  margin-bottom:14px;
+  box-shadow:0 5px 15px #0004;
+}
+.panel h3 {
+  font:normal 19px Georgia,serif;
+  margin:0 0 12px;
+  color:var(--gold);
+}
+.panel p {
+  color:#cbd3c9;
+  line-height:1.6;
+  font-size:13px;
+}
+.switches {display:flex;gap:8px;margin-bottom:16px}
+.switches button {
+  flex:1;
+  padding:11px 8px;
+  border:1px solid #c3a36d6b;
+  border-radius:7px;
+  background:#071b12;
+  color:#d8ddcf;
+  font-size:12px;
+}
+.switches button.selected {
+  background:var(--gold);
+  color:#142419;
+  font-weight:800;
+}
+.data-row {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:13px 0;
+  border-bottom:1px solid #c2ad7740;
+  font-size:13px;
+}
+.data-row:last-child {border:0}
+.data-row b {color:var(--gold)}
+.action {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:9px;
+  width:100%;
+  padding:14px;
+  border-radius:8px;
+  background:linear-gradient(120deg,#f2d48e,#c59a4d);
+  color:#13251a;
+  font-size:13px;
+  font-weight:800;
+  margin-top:14px;
+  border:0;
+}
+.action svg {width:19px;height:19px}
+.muted {color:var(--muted);font-size:12px}
+.menu-link {
+  display:flex;
+  align-items:center;
+  gap:15px;
+  width:100%;
+  padding:17px 13px;
+  border-bottom:1px solid #bda36b33;
+  background:none;
+  color:var(--white);
+  border-left:0;
+  border-right:0;
+  border-top:0;
+  text-align:left;
+  font-size:14px;
+}
+.menu-link svg {color:var(--gold)}
+.menu-link .arrow {margin-left:auto;width:18px}
+.empty {
+  padding:18px 8px;
+  text-align:center;
+  color:#bfc9be;
+  font-size:13px;
+  line-height:1.7;
+}
+@media(min-width:620px) {
+  .tile {min-height:165px}
+  .tile-grid {gap:16px}
 }
 </style>
 </head>
-
 <body>
 
-<header class="hero">
-  <div class="logo">
-    TAYLORVILLE
-    <strong>SGL</strong>
+<!-- Reusable vector icon artwork -->
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+<symbol id="i-home" viewBox="0 0 24 24">
+<path d="m3 10 9-7 9 7v10H3z"/><path d="M9 20v-7h6v7"/>
+</symbol>
+<symbol id="i-trophy" viewBox="0 0 24 24">
+<path d="M7 3h10v7a5 5 0 0 1-10 0zM7 5H3v3a4 4 0 0 0 4 4M17 5h4v3a4 4 0 0 1-4 4M12 15v5M8 21h8"/>
+</symbol>
+<symbol id="i-coins" viewBox="0 0 24 24">
+<ellipse cx="9" cy="7" rx="6" ry="3"/><path d="M3 7v5c0 2 3 3 6 3M15 7v4"/><ellipse cx="16" cy="15" rx="6" ry="3"/><path d="M10 15v4c0 4 12 4 12 0v-4"/>
+</symbol>
+<symbol id="i-flag" viewBox="0 0 24 24">
+<path d="M7 21V3l12 4-12 4"/><ellipse cx="11" cy="21" rx="9" ry="2"/>
+</symbol>
+<symbol id="i-team" viewBox="0 0 24 24">
+<circle cx="9" cy="8" r="3"/><path d="M2 21v-3a7 7 0 0 1 14 0v3M17 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 4 5v2"/>
+</symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24">
+<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 15h3M8 18h7"/>
+</symbol>
+<symbol id="i-video" viewBox="0 0 24 24">
+<rect x="2" y="5" width="20" height="14" rx="3"/><path d="m10 9 6 3-6 3z"/>
+</symbol>
+<symbol id="i-chart" viewBox="0 0 24 24">
+<path d="M3 21h18M6 17v-5M12 17V5M18 17V9M4 3h16"/>
+</symbol>
+<symbol id="i-info" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/>
+</symbol>
+<symbol id="i-more" viewBox="0 0 24 24">
+<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>
+</symbol>
+<symbol id="i-arrow" viewBox="0 0 24 24">
+<path d="m9 5 7 7-7 7"/>
+</symbol>
+</svg>
+
+<div class="app">
+
+<div class="topbar">
+  <div class="brand-mini">TAYLORVILLE <b>SGL</b></div>
+  <div class="season">SIMULATOR GOLF LEAGUE</div>
+</div>
+
+<!-- HOME -->
+<section id="home" class="screen active">
+  <div class="hero">
+    <div class="emblem">
+      <div class="town">TAYLORVILLE</div>
+      <div class="letters">SGL</div>
+      <div class="league">GOLF LEAGUE</div>
+    </div>
+    <h1>Welcome to Taylorville SGL</h1>
+    <p>Your league. Your game.</p>
+    <div class="gold-rule"></div>
   </div>
-  <div class="ball">⛳</div>
-  <div class="subtitle">SIMULATOR GOLF LEAGUE</div>
-  <div class="welcome">Welcome to Taylorville SGL</div>
-</header>
 
-<main class="tiles">
+  <main class="content">
+    <div class="eyebrow">The Clubhouse</div>
+    <h2 class="section-title">Explore Your League</h2>
 
-  <a class="tile" href="index.html#standings">
-    <span class="symbol">🏆</span>
-    Standings
-  </a>
+    <div class="tile-grid">
+      <button class="tile" onclick="showScreen('standings')">
+        <svg><use href="#i-trophy"/></svg>
+        <span>Standings</span>
+        <small>League Leaderboards</small>
+      </button>
 
-  <a class="tile" href="index.html#skins">
-    <span class="symbol">🪙</span>
-    Skins
-  </a>
+      <button class="tile" onclick="showScreen('skins')">
+        <svg><use href="#i-coins"/></svg>
+        <span>Gross Skins</span>
+        <small>Weekly & Season</small>
+      </button>
 
-  <a class="tile" href="index.html#par3">
-    <span class="symbol">⛳</span>
-    Par 3 Challenge
-  </a>
+      <button class="tile" onclick="showScreen('par3')">
+        <svg><use href="#i-flag"/></svg>
+        <span>Par 3 Challenge</span>
+        <small>Challenge Rankings</small>
+      </button>
 
-  <a class="tile" href="index.html#teams">
-    <span class="symbol">👥</span>
-    Teams
-  </a>
+      <button class="tile" onclick="showScreen('teams')">
+        <svg><use href="#i-team"/></svg>
+        <span>Teams</span>
+        <small>League Rosters</small>
+      </button>
 
-  <a class="tile" href="booking.html">
-    <span class="symbol">📅</span>
-    Schedule / Book Simulator
-  </a>
+      <a class="tile" href="booking.html">
+        <svg><use href="#i-calendar"/></svg>
+        <span>Book Simulator</span>
+        <small>Reserve Your Time</small>
+      </a>
 
-  <a class="tile" href="watch-live.html">
-    <span class="symbol">▶</span>
-    Live Stream
-  </a>
+      <a class="tile" href="watch-live.html">
+        <svg><use href="#i-video"/></svg>
+        <span>Live Stream</span>
+        <small>Watch The Action</small>
+      </a>
 
-  <a class="tile" href="index.html#archives">
-    <span class="symbol">📊</span>
-    Results & Archives
-  </a>
+      <button class="tile" onclick="showScreen('archives')">
+        <svg><use href="#i-chart"/></svg>
+        <span>Results & Archives</span>
+        <small>Past Performances</small>
+      </button>
 
-  <a class="tile" href="index.html#league-info">
-    <span class="symbol">ℹ</span>
-    League Info
-  </a>
+      <button class="tile" onclick="showScreen('info')">
+        <svg><use href="#i-info"/></svg>
+        <span>League Info</span>
+        <small>Rules & Details</small>
+      </button>
+    </div>
 
-</main>
+    <p class="footnote">Where every round counts.</p>
+  </main>
+</section>
 
-<nav class="bottom-nav">
-  <a class="active" href="app.html">
-    <span>⌂</span>Home
-  </a>
-  <a href="index.html#standings">
-    <span>🏆</span>Standings
-  </a>
-  <a href="booking.html">
-    <span>▦</span>Book
-  </a>
-  <a href="watch-live.html">
-    <span>▶</span>Live
-  </a>
-  <a href="index.html">
-    <span>•••</span>More
-  </a>
+<!-- STANDINGS -->
+<section id="standings" class="screen">
+  <header class="page-head">
+    <svg class="page-icon"><use href="#i-trophy"/></svg>
+    <h2>League Standings</h2>
+    <p>Follow the race to the top.</p>
+    <div class="gold-rule"></div>
+  </header>
+  <div class="content">
+    <div class="panel">
+      <h3>Season Leaderboard</h3>
+      <div class="switches">
+        <button class="selected" onclick="chooseTab(this,'standings-mode')">Combined</button>
+        <button onclick="chooseTab(this,'standings-mode')">Individual</button>
+        <button onclick="chooseTab(this,'standings-mode')">Teams</button>
+      </div>
+      <div class="empty">
+        The leaderboard layout is ready.<br>
+        Live standings will be connected to your existing Supabase tables.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SKINS -->
+<section id="skins" class="screen">
+  <header class="page-head">
+    <svg class="page-icon"><use href="#i-coins"/></svg>
+    <h2>Gross Skins</h2>
+    <p>Every hole is an opportunity.</p>
+    <div class="gold-rule"></div>
+  </header>
+  <div class="content">
+    <div class="switches">
+      <button class="selected" onclick="chooseTab(this,'skins-mode')">Weekly Skins</button>
+      <button onclick="chooseTab(this,'skins-mode')">Season Skins</button>
+    </div>
+    <div class="panel">
+      <h3>Skins Results</h3>
+      <div class="empty">
+        Weekly winners, payouts, and hole-by-hole results will appear here once the existing skins data is connected.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PAR 3 -->
+<section id="par3" class="screen">
+  <header class="page-head">
+    <svg class="page-icon"><use href="#i-flag"/></svg>
+    <h2>Par 3 Challenge</h2>
+    <p>Precision makes the difference.</p>
+    <div class="gold-rule"></div>
+  </header>
+  <div class="content">
+    <div class="panel">
+      <h3>Challenge Standings</h3>
+      <div class="empty">
+        Your existing Par 3 Challenge standings will be displayed here.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TEAMS -->
+<section id="teams" class="screen">
+  <header class="page-head">
+    <svg class="page-icon"><use href="#i-team"/></svg>
+    <h2>League Teams</h2>
+    <p>Compete together. Win together.</p>
+    <div class="gold-rule"></div>
+  </header>
+  <div class="content">
+    <div class="panel">
+      <h3>Teams & Rosters</h3>
+      <div class="empty">
+        Team names, players, and rankings will load from your league database.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHIVES -->
+<section id="archives" class="screen">
+  <header class="page-head">
+    <svg class="page-icon"><use href="#i-chart"/></svg>
+    <h2>Results & Archives</h2>
+    <p>Every season has a story.</p>
+    <div class="gold-rule"></div>
+  </header>
+  <div class="content">
+    <div class="panel">
+      <h3>Past Results</h3>
+      <div class="empty">
+        Historical league results and completed tournaments will appear here.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LEAGUE INFO -->
+<section id="info" class="screen">
+  <header class="page-head">
+    <svg class="page-icon"><use href="#i-info"/></svg>
+    <h2>League Information</h2>
+    <p>Everything you need to know.</p>
+    <div class="gold-rule"></div>
+  </header>
+  <div class="content">
+    <div class="panel">
+      <h3>Taylorville Simulator Golf League</h3>
+      <p>Welcome to the official home of Taylorville SGL. Access league competition, standings, simulator reservations, and live golf broadcasts.</p>
+      <a href="booking.html" class="action">
+        <svg><use href="#i-calendar"/></svg>
+        Book Simulator Time
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- MORE -->
+<section id="more" class="screen">
+  <header class="page-head">
+    <svg class="page-icon"><use href="#i-more"/></svg>
+    <h2>Explore More</h2>
+    <p>Your league, all in one place.</p>
+    <div class="gold-rule"></div>
+  </header>
+  <div class="content">
+    <div class="panel">
+      <button class="menu-link" onclick="showScreen('skins')">
+        <svg><use href="#i-coins"/></svg> Gross Skins
+        <svg class="arrow"><use href="#i-arrow"/></svg>
+      </button>
+      <button class="menu-link" onclick="showScreen('par3')">
+        <svg><use href="#i-flag"/></svg> Par 3 Challenge
+        <svg class="arrow"><use href="#i-arrow"/></svg>
+      </button>
+      <button class="menu-link" onclick="showScreen('teams')">
+        <svg><use href="#i-team"/></svg> League Teams
+        <svg class="arrow"><use href="#i-arrow"/></svg>
+      </button>
+      <button class="menu-link" onclick="showScreen('archives')">
+        <svg><use href="#i-chart"/></svg> Results & Archives
+        <svg class="arrow"><use href="#i-arrow"/></svg>
+      </button>
+      <button class="menu-link" onclick="showScreen('info')">
+        <svg><use href="#i-info"/></svg> League Information
+        <svg class="arrow"><use href="#i-arrow"/></svg>
+      </button>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<!-- FIXED BOTTOM NAVIGATION -->
+<nav class="bottom-nav" aria-label="Main navigation">
+  <div class="nav-inner">
+    <button class="nav-item active" data-screen="home" onclick="showScreen('home')">
+      <svg><use href="#i-home"/></svg>
+      Home
+    </button>
+    <button class="nav-item" data-screen="standings" onclick="showScreen('standings')">
+      <svg><use href="#i-trophy"/></svg>
+      Standings
+    </button>
+    <a class="nav-item" href="booking.html">
+      <svg><use href="#i-calendar"/></svg>
+      Book
+    </a>
+    <a class="nav-item" href="watch-live.html">
+      <svg><use href="#i-video"/></svg>
+      Live
+    </a>
+    <button class="nav-item" data-screen="more" onclick="showScreen('more')">
+      <svg><use href="#i-more"/></svg>
+      More
+    </button>
+  </div>
 </nav>
+
+<script>
+function showScreen(id) {
+  const target = document.getElementById(id);
+  if (!target || !target.classList.contains("screen")) return;
+
+  document.querySelectorAll(".screen").forEach(screen => {
+    screen.classList.toggle("active", screen.id === id);
+  });
+
+  document.querySelectorAll("button.nav-item").forEach(button => {
+    const isActive = button.dataset.screen === id ||
+      (button.dataset.screen === "more" &&
+       !["home", "standings"].includes(id));
+
+    button.classList.toggle("active", isActive);
+  });
+
+  if (history.replaceState) {
+    history.replaceState(null, "", "#" + id);
+  }
+
+  window.scrollTo(0, 0);
+}
+
+function chooseTab(button) {
+  const group = button.parentElement;
+  group.querySelectorAll("button").forEach(item => {
+    item.classList.toggle("selected", item === button);
+  });
+}
+
+const initialScreen = location.hash.replace("#", "");
+if (initialScreen && document.getElementById(initialScreen)) {
+  showScreen(initialScreen);
+}
+</script>
 
 </body>
 </html>
