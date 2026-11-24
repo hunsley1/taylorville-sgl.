@@ -542,6 +542,12 @@ button {
   white-space: nowrap !important;
 }
 
+/* SESSION SELECTOR SPACING */
+
+#skins > .sgl-app-session {
+  margin: 16px 16px 0;
+}
+
 /* MOBILE */
 
 @media (max-width: 430px) {
@@ -559,6 +565,10 @@ button {
   .body,
   .skins-content {
     padding: 12px;
+  }
+
+  #skins > .sgl-app-session {
+    margin: 12px 12px 0;
   }
 
   #sglAppStandings .panel:nth-child(2) {
@@ -1117,10 +1127,11 @@ if (initialScreen) {
 
 </script>
 
-<!-- LIVE LEAGUE DATA -->
+<!-- SESSION-AWARE LIVE LEAGUE DATA -->
 
-<script src="skins.js?v=4" defer></script>
-<script src="app-leaderboards.js?v=1" defer></script>
+<script src="standings.js?v=20261124-7" defer></script>
+<script src="skins.js?v=20261124-7" defer></script>
+<script src="app-leaderboards.js?v=20261124-7" defer></script>
 
 </body>
 </html>
