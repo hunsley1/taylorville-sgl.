@@ -62,15 +62,8 @@ jobs:
 
               if data is not None:
                   body = json.dumps(data).encode()
-
-                  headers["Content-Type"] = (
-                      "application/json"
-                  )
-
-                  headers["Prefer"] = (
-                      "resolution=merge-duplicates,"
-                      "return=representation"
-                  )
+                  headers["Content-Type"] = "application/json"
+                  headers["Prefer"] = "return=representation"
 
               for attempt in range(3):
                   try:
@@ -85,11 +78,7 @@ jobs:
                           request, timeout=40
                       ) as response:
                           raw = response.read()
-
-                          return (
-                              json.loads(raw)
-                              if raw else []
-                          )
+                          return json.loads(raw) if raw else []
 
                   except urllib.error.HTTPError as error:
                       detail = error.read().decode(
@@ -128,7 +117,6 @@ jobs:
 
               while True:
                   query = dict(params)
-
                   query["order"] = order
                   query["limit"] = 500
                   query["offset"] = offset
@@ -215,8 +203,7 @@ jobs:
           )
 
           print(
-              f"Active session: "
-              f"{session['session_name']}",
+              f"Active session: {session['session_name']}",
               flush=True
           )
 
@@ -227,6 +214,11 @@ jobs:
 
           print(
               f"Total weeks: {session['total_weeks']}",
+              flush=True
+          )
+
+          print(
+              "Database save mode: Atomic RPC",
               flush=True
           )
 
@@ -651,41 +643,47 @@ jobs:
                           "during import"
                       )
 
-                  saved_scores = db(
-                      "sgl_skins_player_scores?"
-                      "on_conflict=session_id,"
-                      "week_number,username",
+                  # Save scorecards and skins together
+                  # using one database transaction.
+
+                  saved = db(
+                      "rpc/sgl_save_weekly_skins",
                       method="POST",
-                      data=scorecards
+                      data={
+                          "p_session_id": session_id,
+                          "p_week_number": number,
+                          "p_scorecards": scorecards,
+                          "p_results": results
+                      }
                   )
 
-                  if len(saved_scores) != len(scorecards):
+                  if not isinstance(saved, dict):
                       raise RuntimeError(
-                          "Not all scorecards saved"
+                          "Unexpected RPC response"
                       )
 
-                  total_cards += len(saved_scores)
-
-                  if not verify_week_open(number, tids):
-                      raise RuntimeError(
-                          "Session or week changed "
-                          "before saving skins"
-                      )
-
-                  saved_skins = db(
-                      "sgl_skins?"
-                      "on_conflict=session_id,"
-                      "week_number,hole_number",
-                      method="POST",
-                      data=results
+                  cards_saved = int(
+                      saved.get("scorecards_saved", -1)
                   )
 
-                  if len(saved_skins) != 18:
+                  skins_saved = int(
+                      saved.get("skins_saved", -1)
+                  )
+
+                  if (
+                      int(saved.get("session_id", -1))
+                      != session_id
+                      or int(saved.get("week_number", -1))
+                      != number
+                      or cards_saved != len(scorecards)
+                      or skins_saved != 18
+                  ):
                       raise RuntimeError(
-                          "Not all 18 skins rows saved"
+                          "Atomic save confirmation mismatch"
                       )
 
-                  total_skins += len(saved_skins)
+                  total_cards += cards_saved
+                  total_skins += skins_saved
                   weeks_updated += 1
 
                   awarded = sum(
@@ -697,8 +695,9 @@ jobs:
 
                   print(
                       f"Week {number}: "
-                      f"{len(scorecards)} players, "
-                      "18 holes calculated",
+                      f"{cards_saved} scorecards and "
+                      f"{skins_saved} skins results "
+                      "saved atomically",
                       flush=True
                   )
 
