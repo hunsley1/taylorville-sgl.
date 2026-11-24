@@ -9,6 +9,7 @@
 <link rel="manifest" href="/taylorville-sgl./manifest.webmanifest">
 <link rel="apple-touch-icon" href="/taylorville-sgl./icons/tgsl-192.png">
 <title>Taylorville SGL | Simulator Golf League</title>
+
 <style>
 :root{font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:#f8f6ed;background:#07180f}
 *{box-sizing:border-box}
@@ -64,7 +65,7 @@ footer{padding:40px 0;text-align:center;color:#b5c3ad;font-size:12px}
 .venmo-handle{font-weight:800;color:#f8f1d9}
 .payment-note{margin:0}
 
-/* TGSL WATCH LIVE SECTION */
+/* WATCH LIVE */
 .live-section{
   border:2px solid #e0bb59;
   background:linear-gradient(110deg,rgba(2,28,15,.96),rgba(15,58,27,.86));
@@ -86,6 +87,30 @@ footer{padding:40px 0;text-align:center;color:#b5c3ad;font-size:12px}
 .live-note{margin:0}
 .live-icon{font-size:28px;margin-bottom:8px}
 
+/* SESSION SELECTOR */
+.session-panel{
+  border:2px solid #d4b559;
+}
+.session-panel .toolbar{
+  margin:10px 0;
+}
+#leagueSession{
+  width:100%;
+  max-width:420px;
+  font-weight:750;
+  border-color:#d6b45e;
+}
+#sessionStatus{
+  margin:8px 0 0;
+}
+#leagueResults[aria-busy="true"]{
+  opacity:.55;
+  pointer-events:none;
+}
+#leagueResults[hidden]{
+  display:none;
+}
+
 @media(max-width:750px){
 .booking-layout,.live-layout{grid-template-columns:1fr;gap:15px}
 .booking-actions,.live-actions{max-width:430px;width:100%;margin:auto}
@@ -106,40 +131,42 @@ th{font-size:10px}
 
 /* GROSS SKINS MOBILE LAYOUT */
 #skinsLeaderboard table {
-  table-layout: fixed;
-  width: 100%;
+  table-layout:fixed;
+  width:100%;
 }
 #skinsLeaderboard th,
 #skinsLeaderboard td {
-  padding: 11px 5px;
-  font-size: 12px;
-  overflow-wrap: anywhere;
+  padding:11px 5px;
+  font-size:12px;
+  overflow-wrap:anywhere;
 }
 #skinsLeaderboard th {
-  font-size: 10px;
-  letter-spacing: .04em;
+  font-size:10px;
+  letter-spacing:.04em;
 }
 #skinsLeaderboard th:first-child,
 #skinsLeaderboard td:first-child {
-  width: 13%;
+  width:13%;
 }
 #skinsLeaderboard th:nth-child(2),
 #skinsLeaderboard td:nth-child(2) {
-  width: 48%;
+  width:48%;
 }
 #skinsLeaderboard th:nth-child(3),
 #skinsLeaderboard td:nth-child(3) {
-  width: 16%;
-  text-align: center;
+  width:16%;
+  text-align:center;
 }
 #skinsLeaderboard th:last-child,
 #skinsLeaderboard td:last-child {
-  width: 23%;
-  text-align: right;
+  width:23%;
+  text-align:right;
 }
 </style>
 </head>
+
 <body>
+
 <header>
 <div class="wrap top">
 <div class="crest">❧ ⚑ ❧</div>
@@ -166,7 +193,7 @@ th{font-size:10px}
 </div>
 </section>
 
-<!-- TGSL WATCH LIVE -->
+<!-- WATCH LIVE -->
 <section class="panel live-section" id="watchLive">
 <div class="live-layout">
 <div class="live-info">
@@ -196,10 +223,39 @@ Visit TGSL YouTube Channel
 </div>
 </div>
 </section>
-<!-- END TGSL WATCH LIVE -->
 
-<p id="loadStatus" class="muted small" role="status">Loading league standings…</p>
+<!-- LEAGUE SESSION SELECTOR -->
+<section class="panel session-panel">
+<div class="row">
+<div>
+<div class="eyebrow">TAYLORVILLE SGL</div>
+<h2>League Session</h2>
+</div>
+<span class="pill" id="sessionBadge">LOADING</span>
+</div>
 
+<div class="toolbar">
+<select id="leagueSession"
+aria-label="Select league session"
+disabled>
+<option value="">Loading sessions…</option>
+</select>
+</div>
+
+<p id="sessionStatus"
+class="season-note"
+role="status">
+Loading league sessions…
+</p>
+</section>
+
+<p id="loadStatus" class="muted small" role="status">
+Loading league standings…
+</p>
+
+<div id="leagueResults" aria-busy="true" hidden>
+
+<!-- CURRENT STANDINGS -->
 <section class="panel">
 <div class="row">
 <div>
@@ -211,6 +267,7 @@ Visit TGSL YouTube Channel
 <button id="netBtn">Net</button>
 </div>
 </div>
+
 <div style="overflow-x:auto">
 <table>
 <thead>
@@ -226,9 +283,11 @@ Visit TGSL YouTube Channel
 </tbody>
 </table>
 </div>
+
 <p class="season-note">HCP is each golfer's SGT tournament handicap for this week. Scores appear automatically when imported into Supabase.</p>
 </section>
 
+<!-- PAR 3 CHALLENGE -->
 <section class="panel par3-section" id="par3Leaderboard">
 <div class="row">
 <div>
@@ -237,17 +296,23 @@ Visit TGSL YouTube Channel
 </div>
 <span class="pill">BEST SHOT WINS</span>
 </div>
+
 <p class="season-note">Each golfer's single closest recorded Par 3 shot counts. Distances are imported automatically from both SGT tournaments. Lowest distance wins.</p>
+
 <div class="toolbar">
 <div class="tabs">
 <button id="par3WeeklyBtn" class="active">Weekly</button>
 <button id="par3SeasonBtn">Season</button>
 </div>
 <select id="par3Week" aria-label="Par 3 week">
-<option value="5">Week 5</option>
+<option value="">Loading…</option>
 </select>
 </div>
-<p id="par3Status" class="muted small" role="status">Loading closest-to-pin results…</p>
+
+<p id="par3Status" class="muted small" role="status">
+Loading closest-to-pin results…
+</p>
+
 <div style="overflow-x:auto">
 <table>
 <thead id="par3Head">
@@ -258,6 +323,7 @@ Visit TGSL YouTube Channel
 </tbody>
 </table>
 </div>
+
 <p id="par3Footnote" class="season-note">Weekly rankings use each player's closest shot from either tournament.</p>
 </section>
 
@@ -283,7 +349,7 @@ hole and accumulated carryovers. Tied holes carry forward.
 <button id="skinsSeasonBtn">Season</button>
 </div>
 <select id="skinsWeek" aria-label="Skins week">
-<option value="5">Week 5</option>
+<option value="">Loading…</option>
 </select>
 </div>
 
@@ -338,8 +404,8 @@ Loading weekly leaders…
 
 <p id="skinsFootnote" class="season-note"></p>
 </section>
-<!-- END AUTOMATIC GROSS SKINS -->
 
+<!-- WEEKLY TEAMS -->
 <section class="panel">
 <div class="row">
 <div>
@@ -363,6 +429,7 @@ Loading weekly leaders…
 </div>
 </section>
 
+<!-- SEASON STANDINGS -->
 <section class="panel">
 <div class="row">
 <div>
@@ -374,7 +441,9 @@ Loading weekly leaders…
 <button id="seasonNet">Net</button>
 </div>
 </div>
+
 <p class="season-note">Individual positions are ranked by cumulative total strokes from finalized weeks, not average. Team standings use the combined net strokes of all four golfers.</p>
+
 <h3>Individual season totals</h3>
 <div style="overflow-x:auto">
 <table>
@@ -389,6 +458,7 @@ Loading weekly leaders…
 </tbody>
 </table>
 </div>
+
 <h3>Team season totals · Net only</h3>
 <div style="overflow-x:auto">
 <table>
@@ -405,6 +475,7 @@ Loading weekly leaders…
 </div>
 </section>
 
+<!-- WEEKLY RESULTS ARCHIVE -->
 <section class="panel" id="weeklyArchive">
 <div class="row">
 <div>
@@ -413,18 +484,25 @@ Loading weekly leaders…
 </div>
 <span class="pill" id="completedCount">0 COMPLETED WEEKS</span>
 </div>
-<p class="season-note">Choose a completed week to see individual gross/net rankings and all five team net totals.</p>
+
+<p class="season-note" id="archiveDescription">
+Choose a completed week to see individual gross/net rankings and team net totals.
+</p>
+
 <div class="toolbar">
 <select id="archiveWeek" aria-label="Completed week"></select>
+
 <div class="tabs">
 <button id="archiveIndividual" class="active">Individuals</button>
 <button id="archiveTeams">Teams</button>
 </div>
+
 <div class="tabs" id="archiveScoreTabs">
 <button id="archiveGross" class="active">Gross</button>
 <button id="archiveNet">Net</button>
 </div>
 </div>
+
 <div style="overflow-x:auto">
 <table>
 <thead id="archiveHead"></thead>
@@ -435,20 +513,26 @@ Loading weekly leaders…
 </div>
 </section>
 
+<!-- TOURNAMENT SCHEDULE -->
 <section class="panel">
 <div class="row">
 <h2>Season tournament archive</h2>
-<span class="pill" id="weekCount">8 WEEKS</span>
+<span class="pill" id="weekCount">— WEEKS</span>
 </div>
-<div id="archive" class="muted">Loading tournament schedule…</div>
+<div id="archive" class="muted">
+Loading tournament schedule…
+</div>
 </section>
+
+</div>
 </main>
 
 <footer>
 <div class="wrap">© Taylorville SGL · Independent league website · Not affiliated with Simulator Golf Tour</div>
 </footer>
 
-<script src="standings.js?v=3"></script>
+<script src="standings.js?v=20261124-5"></script>
+
 <script>
 "use strict";
 
@@ -466,21 +550,25 @@ const esc = s => String(s ?? "").replace(
 );
 
 let db = null;
-let currentWeek = 5;
+let currentWeek = 1;
 let view = "gross";
 let seasonView = "gross";
 let archiveView = "gross";
 let archiveCategory = "individual";
-let archiveWeek = 4;
+let archiveWeek = 0;
 let leagueFullyLoaded = false;
+let sessionSwitching = false;
 
 const isScore = x =>
-  typeof x === "number" && Number.isFinite(x);
+  typeof x === "number" &&
+  Number.isFinite(x);
 
 const byScore = (a, b, k) =>
   a[k] - b[k] ||
   String(a.username || a.team)
-    .localeCompare(String(b.username || b.team));
+    .localeCompare(
+      String(b.username || b.team)
+    );
 
 function formatHandicap(value) {
   if (
@@ -490,6 +578,7 @@ function formatHandicap(value) {
   ) return "—";
 
   const number = Number(value);
+
   return Number.isFinite(number)
     ? number.toFixed(1)
     : "—";
@@ -497,11 +586,18 @@ function formatHandicap(value) {
 
 function setButtons(ids, active) {
   ids.forEach(id =>
-    $(id).classList.toggle("active", id === active)
+    $(id).classList.toggle(
+      "active",
+      id === active
+    )
   );
 }
 
-function rowsWithRanks(items, field, renderer) {
+function rowsWithRanks(
+  items,
+  field,
+  renderer
+) {
   let previous = null;
   let rank = 0;
 
@@ -514,9 +610,144 @@ function rowsWithRanks(items, field, renderer) {
     }
 
     previous = item[field];
+
     return renderer(item, rank);
   }).join("");
 }
+
+function emptyRow(columns, message) {
+  return `<tr>
+<td colspan="${columns}" class="empty">
+${esc(message)}
+</td>
+</tr>`;
+}
+
+// ==========================================
+// SESSION SELECTOR
+// ==========================================
+
+function renderSessionSelector() {
+  if (!db || !db.session) return;
+
+  const session = db.session;
+
+  const sessions =
+    window.sglGetSessions();
+
+  $("leagueSession").innerHTML =
+    sessions.map(item => `
+<option value="${esc(item.id)}">
+${esc(item.session_name ||
+  `${item.season_year} Session ${item.session_number}`)}
+${item.status === "active" ? " · Active" : ""}
+</option>`).join("");
+
+  $("leagueSession").value =
+    String(session.id);
+
+  $("leagueSession").disabled =
+    sessionSwitching ||
+    sessions.length === 0;
+
+  const completed =
+    session.status === "completed";
+
+  const totalWeeks =
+    Number(session.total_weeks) ||
+    db.weeks.length;
+
+  const finishedWeeks =
+    db.weeks.filter(w => w.finalized).length;
+
+  const allFinished =
+    db.weeks.length > 0 &&
+    db.weeks.every(w => w.finalized);
+
+  $("sessionBadge").textContent =
+    completed
+      ? "COMPLETED SESSION"
+      : "ACTIVE SESSION";
+
+  const weekStatus =
+    completed || allFinished
+      ? `${finishedWeeks} of ${totalWeeks} weeks finalized`
+      : `Week ${currentWeek} of ${totalWeeks}`;
+
+  $("sessionStatus").textContent =
+    `${completed ? "Historical session" : "Active session"} · ${weekStatus} · ${db.players.length} golfers · ${db.teams.length} teams`;
+
+  $("archiveDescription").textContent =
+    `Choose a completed week to see individual gross/net rankings and all ${db.teams.length} team net totals.`;
+}
+
+$("leagueSession").onchange = async event => {
+  if (sessionSwitching) return;
+
+  const sessionId = event.target.value;
+
+  if (!sessionId) return;
+
+  sessionSwitching = true;
+
+  $("leagueSession").disabled = true;
+
+  $("leagueResults").hidden = true;
+
+  $("leagueResults").setAttribute(
+    "aria-busy",
+    "true"
+  );
+
+  $("sessionStatus").textContent =
+    "Loading selected session…";
+
+  $("loadStatus").style.display = "none";
+
+  try {
+    await window.sglSelectSession(
+      sessionId
+    );
+
+  } catch (error) {
+    console.error(
+      "Session selection failed:",
+      error
+    );
+
+    $("loadStatus").style.display =
+      "block";
+
+    $("loadStatus").className =
+      "error small";
+
+    $("loadStatus").textContent =
+      "Could not change sessions: " +
+      error.message;
+
+  } finally {
+    sessionSwitching = false;
+
+    if (db) {
+      renderSessionSelector();
+
+      $("leagueResults").hidden =
+        false;
+
+      $("leagueResults").setAttribute(
+        "aria-busy",
+        "false"
+      );
+    }
+
+    $("leagueSession").disabled =
+      !db;
+  }
+};
+
+// ==========================================
+// LEAGUE DATA AND SCORING
+// ==========================================
 
 function teamMap() {
   const names = new Map(
@@ -528,8 +759,12 @@ function teamMap() {
 
   return new Map(
     db.players.map(p => [
-      String(p.username).trim().toLowerCase(),
-      names.get(String(p.team_id)) || "Unassigned"
+      String(p.username)
+        .trim()
+        .toLowerCase(),
+
+      names.get(String(p.team_id)) ||
+        "Unassigned"
     ])
   );
 }
@@ -538,9 +773,12 @@ function weekScores(number) {
   if (!db) return [];
 
   return db.scores.filter(s =>
-    Number(s.week_number) === Number(number) &&
+    Number(s.week_number) ===
+      Number(number) &&
+
     String(s.status || "played")
-      .trim().toLowerCase() === "played"
+      .trim()
+      .toLowerCase() === "played"
   );
 }
 
@@ -570,12 +808,20 @@ function teamResults(number) {
   const assignments = teamMap();
 
   for (const score of weekScores(number)) {
-    const username = String(score.username || "")
-      .trim().toLowerCase();
+    const username =
+      String(score.username || "")
+        .trim()
+        .toLowerCase();
 
-    const team = teams.get(assignments.get(username));
+    const team =
+      teams.get(
+        assignments.get(username)
+      );
 
-    if (team && isScore(score.net_strokes)) {
+    if (
+      team &&
+      isScore(score.net_strokes)
+    ) {
       team.total += score.net_strokes;
       team.count++;
     }
@@ -587,18 +833,35 @@ function teamResults(number) {
       complete: t.count === 4
     }))
     .sort((a, b) =>
-      Number(b.complete) - Number(a.complete) ||
+      Number(b.complete) -
+      Number(a.complete) ||
+
       (a.complete ? a.total : Infinity) -
       (b.complete ? b.total : Infinity) ||
+
       a.team.localeCompare(b.team)
     );
 }
 
+// ==========================================
+// CURRENT WEEK STANDINGS
+// ==========================================
+
 function renderCurrentScores() {
   if (!db) return;
 
+  const week = db.weeks.find(
+    w => Number(w.week_number) ===
+      Number(currentWeek)
+  );
+
   $("currentWeekLabel").textContent =
-    "CURRENT WEEK • WEEK " + currentWeek;
+    (
+      db.session?.status === "completed" ||
+      week?.finalized
+        ? "FINALIZED WEEK"
+        : "CURRENT WEEK"
+    ) + " • WEEK " + currentWeek;
 
   const field = view + "_strokes";
 
@@ -607,31 +870,34 @@ function renderCurrentScores() {
 
   const scores = weekScores(currentWeek)
     .filter(s => isScore(s[field]))
-    .sort((a, b) => byScore(a, b, field));
+    .sort((a, b) =>
+      byScore(a, b, field)
+    );
 
-  $("board").innerHTML = scores.length
-    ? rowsWithRanks(
-        scores,
-        field,
-        (score, rank) => `
+  $("board").innerHTML =
+    scores.length
+      ? rowsWithRanks(
+          scores,
+          field,
+          (score, rank) => `
 <tr>
 <td class="tag">${rank}</td>
 <td>${esc(score.username)}</td>
 <td class="handicap">${formatHandicap(score.handicap)}</td>
 <td><strong>${score[field]}</strong></td>
 </tr>`
-      )
-    : `<tr>
-<td colspan="4" class="empty">
-No combined scores entered for this week.
-</td>
-</tr>`;
+        )
+      : emptyRow(
+          4,
+          "No combined scores entered for this week."
+        );
 }
 
 function renderCurrentTeams() {
   if (!leagueFullyLoaded) return;
 
-  const teams = teamResults(currentWeek);
+  const teams =
+    teamResults(currentWeek);
 
   $("weeklyTeams").innerHTML =
     teams.map((team, index) => `
@@ -641,11 +907,13 @@ function renderCurrentTeams() {
 <td>${team.count}/4</td>
 <td><strong>${
   team.count
-    ? (team.total > 0 ? "+" : "") + team.total
+    ? (team.total > 0 ? "+" : "") +
+      team.total
     : "—"
 }</strong></td>
 <td>${team.complete ? "Complete" : "Pending"}</td>
-</tr>`).join("");
+</tr>`).join("") ||
+    emptyRow(5, "No teams assigned.");
 }
 
 function renderCurrent() {
@@ -653,27 +921,42 @@ function renderCurrent() {
   renderCurrentTeams();
 }
 
+// ==========================================
+// SEASON STANDINGS
+// ==========================================
+
 function renderSeason() {
   if (!leagueFullyLoaded) return;
 
   const completed = completeWeeks();
+
   const assignments = teamMap();
+
   const players = new Map();
 
   for (const week of completed) {
-    for (const score of weekScores(week.week_number)) {
+    for (
+      const score of
+      weekScores(week.week_number)
+    ) {
       if (
         !isScore(score.gross_strokes) ||
         !isScore(score.net_strokes)
       ) continue;
 
-      const key = String(score.username || "")
-        .trim().toLowerCase();
+      const key =
+        String(score.username || "")
+          .trim()
+          .toLowerCase();
 
       if (!players.has(key)) {
         players.set(key, {
           username: score.username,
-          team: assignments.get(key) || "Unassigned",
+
+          team:
+            assignments.get(key) ||
+            "Unassigned",
+
           rounds: 0,
           gross_strokes: 0,
           net_strokes: 0
@@ -683,15 +966,23 @@ function renderSeason() {
       const player = players.get(key);
 
       player.rounds++;
-      player.gross_strokes += score.gross_strokes;
-      player.net_strokes += score.net_strokes;
+
+      player.gross_strokes +=
+        score.gross_strokes;
+
+      player.net_strokes +=
+        score.net_strokes;
     }
   }
 
-  const field = seasonView + "_strokes";
+  const field =
+    seasonView + "_strokes";
 
-  const ranked = [...players.values()]
-    .sort((a, b) => byScore(a, b, field));
+  const ranked =
+    [...players.values()]
+      .sort((a, b) =>
+        byScore(a, b, field)
+      );
 
   $("seasonPlayers").innerHTML =
     ranked.length
@@ -708,9 +999,10 @@ function renderSeason() {
 <td>${(player[field] / player.rounds).toFixed(2)}</td>
 </tr>`
         )
-      : `<tr>
-<td colspan="6" class="empty">No finalized rounds yet.</td>
-</tr>`;
+      : emptyRow(
+          6,
+          "No finalized rounds yet."
+        );
 
   const totals = new Map(
     db.teams.map(t => [
@@ -724,21 +1016,27 @@ function renderSeason() {
   );
 
   for (const week of completed) {
-    for (const team of teamResults(week.week_number)) {
+    for (
+      const team of
+      teamResults(week.week_number)
+    ) {
       if (team.complete) {
-        const target = totals.get(team.team);
+        const target =
+          totals.get(team.team);
+
         target.weeks++;
         target.total += team.total;
       }
     }
   }
 
-  const teamRows = [...totals.values()]
-    .sort((a, b) =>
-      b.weeks - a.weeks ||
-      a.total - b.total ||
-      a.team.localeCompare(b.team)
-    );
+  const teamRows =
+    [...totals.values()]
+      .sort((a, b) =>
+        b.weeks - a.weeks ||
+        a.total - b.total ||
+        a.team.localeCompare(b.team)
+      );
 
   $("seasonTeams").innerHTML =
     teamRows.map((team, index) => `
@@ -748,12 +1046,19 @@ function renderSeason() {
 <td>${team.weeks}</td>
 <td><strong>${team.weeks ? team.total : "—"}</strong></td>
 <td>${
-  team.weeks === completed.length
-    ? "Complete"
-    : "Incomplete"
+  completed.length === 0
+    ? "Pending"
+    : team.weeks === completed.length
+      ? "Complete"
+      : "Incomplete"
 }</td>
-</tr>`).join("");
+</tr>`).join("") ||
+    emptyRow(5, "No teams assigned.");
 }
+
+// ==========================================
+// WEEKLY RESULTS ARCHIVE
+// ==========================================
 
 function renderArchive() {
   if (!leagueFullyLoaded) return;
@@ -761,46 +1066,72 @@ function renderArchive() {
   const completed = completeWeeks();
 
   $("completedCount").textContent =
-    completed.length + " COMPLETED WEEKS";
+    completed.length +
+    " COMPLETED WEEKS";
 
   const select = $("archiveWeek");
 
   if (
     !completed.some(w =>
-      Number(w.week_number) === Number(archiveWeek)
+      Number(w.week_number) ===
+      Number(archiveWeek)
     )
   ) {
     archiveWeek =
-      completed.at(-1)?.week_number ?? 0;
+      completed.at(-1)?.week_number ??
+      0;
   }
 
-  select.innerHTML = completed.map(w => `
+  select.innerHTML =
+    completed.map(w => `
 <option value="${w.week_number}">
 Week ${w.week_number}${
-  w.course_name ? " · " + esc(w.course_name) : ""
+  w.course_name
+    ? " · " + esc(w.course_name)
+    : ""
 }
 </option>`).join("");
 
-  select.value = String(archiveWeek);
+  if (!completed.length) {
+    select.innerHTML =
+      '<option value="">No completed weeks</option>';
+  }
+
+  select.disabled =
+    completed.length === 0;
+
+  if (archiveWeek) {
+    select.value =
+      String(archiveWeek);
+  }
 
   $("archiveScoreTabs").style.display =
-    archiveCategory === "teams" ? "none" : "";
+    archiveCategory === "teams"
+      ? "none"
+      : "";
 
   if (!archiveWeek) {
     $("archiveHead").innerHTML = "";
+
     $("archiveBody").innerHTML =
-      `<tr><td class="empty">
-No finalized weeks yet.
-</td></tr>`;
+      emptyRow(
+        1,
+        "No finalized weeks yet."
+      );
+
     return;
   }
 
   if (archiveCategory === "individual") {
-    const field = archiveView + "_strokes";
+    const field =
+      archiveView + "_strokes";
 
-    const scores = weekScores(archiveWeek)
-      .filter(s => isScore(s[field]))
-      .sort((a, b) => byScore(a, b, field));
+    const scores =
+      weekScores(archiveWeek)
+        .filter(s => isScore(s[field]))
+        .sort((a, b) =>
+          byScore(a, b, field)
+        );
 
     $("archiveHead").innerHTML =
       `<tr>
@@ -822,14 +1153,14 @@ No finalized weeks yet.
 <td><strong>${score[field]}</strong></td>
 </tr>`
       ) ||
-      `<tr>
-<td colspan="4" class="empty">
-No scores available.
-</td>
-</tr>`;
+      emptyRow(
+        4,
+        "No scores available."
+      );
 
   } else {
-    const teams = teamResults(archiveWeek);
+    const teams =
+      teamResults(archiveWeek);
 
     $("archiveHead").innerHTML =
       `<tr>
@@ -846,11 +1177,21 @@ No scores available.
 <td>${esc(team.team)}</td>
 <td>${team.count}/4</td>
 <td><strong>${
-  team.complete ? team.total : "Incomplete"
+  team.complete
+    ? team.total
+    : "Incomplete"
 }</strong></td>
-</tr>`).join("");
+</tr>`).join("") ||
+      emptyRow(
+        4,
+        "No teams assigned."
+      );
   }
 }
+
+// ==========================================
+// TOURNAMENT SCHEDULE
+// ==========================================
 
 function renderSchedule() {
   if (!leagueFullyLoaded) return;
@@ -862,7 +1203,10 @@ function renderSchedule() {
     );
 
   $("weekCount").textContent =
-    weeks.length + " WEEKS";
+    (
+      Number(db.session?.total_weeks) ||
+      weeks.length
+    ) + " WEEKS";
 
   $("archive").innerHTML =
     weeks.map(week => `
@@ -873,7 +1217,8 @@ function renderSchedule() {
 ${
   week.finalized
     ? "Finalized"
-    : Number(week.week_number) === Number(currentWeek)
+    : Number(week.week_number) ===
+      Number(currentWeek)
       ? "Current week"
       : "Upcoming"
 }
@@ -893,7 +1238,8 @@ View results
 </button>`
     : ""
 }
-</div>`).join("");
+</div>`).join("") ||
+    "No tournament weeks scheduled.";
 
   document.querySelectorAll(
     "[data-archive-week]"
@@ -913,230 +1259,115 @@ View results
 }
 
 function renderAll() {
+  renderSessionSelector();
   renderCurrent();
   renderSeason();
   renderArchive();
   renderSchedule();
 }
 
+// ==========================================
+// STANDINGS BUTTONS
+// ==========================================
+
 $("grossBtn").onclick = () => {
   view = "gross";
+
   setButtons(
     ["grossBtn", "netBtn"],
     "grossBtn"
   );
+
   renderCurrentScores();
 };
 
 $("netBtn").onclick = () => {
   view = "net";
+
   setButtons(
     ["grossBtn", "netBtn"],
     "netBtn"
   );
+
   renderCurrentScores();
 };
 
 $("seasonGross").onclick = () => {
   seasonView = "gross";
+
   setButtons(
     ["seasonGross", "seasonNet"],
     "seasonGross"
   );
+
   renderSeason();
 };
 
 $("seasonNet").onclick = () => {
   seasonView = "net";
+
   setButtons(
     ["seasonGross", "seasonNet"],
     "seasonNet"
   );
+
   renderSeason();
 };
 
 $("archiveIndividual").onclick = () => {
   archiveCategory = "individual";
+
   setButtons(
     ["archiveIndividual", "archiveTeams"],
     "archiveIndividual"
   );
+
   renderArchive();
 };
 
 $("archiveTeams").onclick = () => {
   archiveCategory = "teams";
+
   setButtons(
     ["archiveIndividual", "archiveTeams"],
     "archiveTeams"
   );
+
   renderArchive();
 };
 
 $("archiveGross").onclick = () => {
   archiveView = "gross";
+
   setButtons(
     ["archiveGross", "archiveNet"],
     "archiveGross"
   );
+
   renderArchive();
 };
 
 $("archiveNet").onclick = () => {
   archiveView = "net";
+
   setButtons(
     ["archiveGross", "archiveNet"],
     "archiveNet"
   );
+
   renderArchive();
 };
 
 $("archiveWeek").onchange = event => {
-  archiveWeek = Number(event.target.value);
+  archiveWeek =
+    Number(event.target.value);
+
   renderArchive();
 };
 
-// Display the current leaderboard as soon as it arrives.
-window.addEventListener(
-  "sgl-current-ready",
-  event => {
-    if (leagueFullyLoaded) return;
-
-    const data = event.detail;
-
-    currentWeek = Number(data.currentWeek);
-
-    db = {
-      players: [],
-      teams: [],
-      weeks: data.weeks,
-      scores: data.scores
-    };
-
-    renderCurrentScores();
-
-    $("loadStatus").textContent =
-      "Current standings loaded. Loading season data…";
-  }
-);
-
-// Full data arrives afterward.
-window.addEventListener(
-  "sgl-standings-loaded",
-  event => {
-    db = event.detail;
-    leagueFullyLoaded = true;
-
-    const unfinished = db.weeks
-      .filter(w => !w.finalized)
-      .sort((a, b) =>
-        Number(a.week_number) -
-        Number(b.week_number)
-      );
-
-    currentWeek = Number(
-      unfinished[0]?.week_number ??
-      (Math.max(
-        0,
-        ...db.weeks.map(w => Number(w.week_number))
-      ) + 1)
-    );
-
-    renderAll();
-
-    $("loadStatus").textContent =
-      `League data loaded · ${db.players.length} golfers`;
-  }
-);
-
-// Update all standings when new scores arrive.
-window.addEventListener(
-  "sgl-standings-refreshed",
-  event => {
-    db = {
-      players: event.detail.players,
-      teams: event.detail.teams,
-      weeks: event.detail.weeks,
-      scores: event.detail.scores
-    };
-
-    currentWeek = Number(
-      event.detail.currentWeek
-    );
-
-    leagueFullyLoaded = true;
-
-    renderAll();
-  }
-);
-
-// Start loading.
-(async () => {
-  try {
-    if (
-      typeof loadSGLStandings !== "function"
-    ) {
-      throw new Error(
-        "standings.js did not load."
-      );
-    }
-
-    await loadSGLStandings();
-
-  } catch (error) {
-    console.error(
-      "Taylorville SGL standings error:",
-      error
-    );
-
-    $("loadStatus").style.display = "block";
-    $("loadStatus").className = "error";
-
-    $("loadStatus").textContent =
-      "Standings could not load: " +
-      error.message;
-
-    if (!leagueFullyLoaded && !db) {
-      $("board").innerHTML =
-        `<tr><td colspan="4" class="empty">
-Unable to load standings.
-</td></tr>`;
-    }
-  }
-})();
-
-// Automatically check for updated scores every minute.
-setInterval(() => {
-  if (
-    document.visibilityState === "visible" &&
-    typeof refreshSGLStandings === "function"
-  ) {
-    refreshSGLStandings();
-  }
-}, 60000);
-
-// Also refresh when returning to the website.
-let sglLastRefresh = Date.now();
-
-document.addEventListener(
-  "visibilitychange",
-  () => {
-    if (
-      document.visibilityState === "visible" &&
-      Date.now() - sglLastRefresh > 60000 &&
-      typeof refreshSGLStandings === "function"
-    ) {
-      sglLastRefresh = Date.now();
-      refreshSGLStandings();
-    }
-  }
-);
-
-// PAR 3 CHALLENGE
-const PAR3_CONFIG = {
-  url: "https://xgjziyopzeeneccfaszb.supabase.co",
-  key: "sb_publishable_7ttHIcbCVOCv1rJlWpq0AA_59y0Tw7O"
-};
+// ==========================================
+// SESSION-SPECIFIC PAR 3 CHALLENGE
+// ==========================================
 
 let par3Shots = [];
 let par3Mode = "weekly";
@@ -1145,27 +1376,8 @@ let par3Loaded = false;
 let par3Error = "";
 let par3ManualWeekSelection = false;
 let par3Loading = false;
-
-async function par3Fetch(table, select) {
-  const response = await fetch(
-    `${PAR3_CONFIG.url}/rest/v1/${table}?select=${encodeURIComponent(select)}&limit=10000`,
-    {
-      headers: {
-        apikey: PAR3_CONFIG.key,
-        Accept: "application/json"
-      },
-      cache: "no-store"
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      `Supabase returned ${response.status} for ${table}`
-    );
-  }
-
-  return response.json();
-}
+let par3SessionId = null;
+let par3RequestVersion = 0;
 
 function par3Normalize(name) {
   return String(name || "")
@@ -1197,47 +1409,58 @@ function par3BestShots(shots) {
   const best = new Map();
 
   for (const shot of shots) {
-    const key = par3Normalize(shot.username);
+    const key =
+      par3Normalize(shot.username);
+
     if (!key) continue;
 
     const previous = best.get(key);
 
-    if (!previous || par3Better(shot, previous)) {
+    if (
+      !previous ||
+      par3Better(shot, previous)
+    ) {
       best.set(key, shot);
     }
   }
 
-  return [...best.values()].sort((a, b) =>
-    a.distance_ft - b.distance_ft ||
-    a.username.localeCompare(b.username)
-  );
+  return [...best.values()]
+    .sort((a, b) =>
+      a.distance_ft - b.distance_ft ||
+      a.username.localeCompare(b.username)
+    );
 }
 
 function par3Render() {
-  const weekly = par3Mode === "weekly";
+  const weekly =
+    par3Mode === "weekly";
 
   setButtons(
     ["par3WeeklyBtn", "par3SeasonBtn"],
-    weekly ? "par3WeeklyBtn" : "par3SeasonBtn"
+    weekly
+      ? "par3WeeklyBtn"
+      : "par3SeasonBtn"
   );
 
   $("par3Week").style.display =
     weekly ? "" : "none";
 
-  $("par3Head").innerHTML = weekly
-    ? `<tr>
+  $("par3Head").innerHTML =
+    weekly
+      ? `<tr>
 <th>POS</th><th>PLAYER</th>
 <th>HOLE</th><th>DISTANCE</th>
 </tr>`
-    : `<tr>
+      : `<tr>
 <th>POS</th><th>PLAYER</th>
 <th>WEEK</th><th>HOLE</th>
 <th>DISTANCE</th>
 </tr>`;
 
-  $("par3Footnote").textContent = weekly
-    ? `Week ${par3SelectedWeek ?? "—"}: each player's closest shot from either tournament counts. Equal distances share rank.`
-    : "Season rankings use each golfer's single closest shot across all weeks. Equal distances share rank.";
+  $("par3Footnote").textContent =
+    weekly
+      ? `Week ${par3SelectedWeek ?? "—"}: each player's closest shot from either tournament counts. Equal distances share rank.`
+      : "Season rankings use each golfer's single closest shot across all weeks. Equal distances share rank.";
 
   const cols = weekly ? 4 : 5;
 
@@ -1246,46 +1469,55 @@ function par3Render() {
       "Unable to load Par 3 results.";
 
     $("par3Body").innerHTML =
-      `<tr><td colspan="${cols}" class="empty error">
-${esc(par3Error)}
-</td></tr>`;
+      emptyRow(cols, par3Error);
+
     return;
   }
 
   if (!par3Loaded) {
+    $("par3Status").textContent =
+      "Loading closest-to-pin results…";
+
     $("par3Body").innerHTML =
-      `<tr><td colspan="${cols}" class="empty">
-Loading Par 3 results…
-</td></tr>`;
+      emptyRow(
+        cols,
+        "Loading Par 3 results…"
+      );
+
     return;
   }
 
-  const relevant = weekly
-    ? par3Shots.filter(s =>
-        s.week_number === par3SelectedWeek
-      )
-    : par3Shots;
+  const relevant =
+    weekly
+      ? par3Shots.filter(s =>
+          s.week_number ===
+          par3SelectedWeek
+        )
+      : par3Shots;
 
-  const ranked = par3BestShots(relevant);
+  const ranked =
+    par3BestShots(relevant);
 
-  $("par3Status").textContent = weekly
-    ? `Week ${par3SelectedWeek ?? "—"} · ${ranked.length} golfers with recorded shots`
-    : `Season · ${ranked.length} golfers with recorded shots`;
+  $("par3Status").textContent =
+    weekly
+      ? `Week ${par3SelectedWeek ?? "—"} · ${ranked.length} golfers with recorded shots`
+      : `Season · ${ranked.length} golfers with recorded shots`;
 
   if (!ranked.length) {
     $("par3Body").innerHTML =
-      `<tr><td colspan="${cols}" class="empty">
-No closest-to-pin shots recorded for this ${
-  weekly ? "week" : "season"
-} yet.
-</td></tr>`;
+      emptyRow(
+        cols,
+        `No closest-to-pin shots recorded for this ${weekly ? "week" : "season"} yet.`
+      );
+
     return;
   }
 
-  $("par3Body").innerHTML = rowsWithRanks(
-    ranked,
-    "distance_ft",
-    (shot, rank) => `
+  $("par3Body").innerHTML =
+    rowsWithRanks(
+      ranked,
+      "distance_ft",
+      (shot, rank) => `
 <tr class="${rank === 1 ? "par3-top" : ""}">
 <td class="tag">${rank}</td>
 <td>${esc(shot.username)}</td>
@@ -1293,14 +1525,16 @@ ${weekly ? "" : `<td>Week ${shot.week_number}</td>`}
 <td>${shot.hole_number}</td>
 <td class="par3-distance">${shot.distance_ft.toFixed(2)} ft</td>
 </tr>`
-  );
+    );
 }
 
 function par3SetWeeks(weeks) {
   const numbers = [...new Set(
     weeks
       .map(w => Number(w.week_number))
-      .filter(n => Number.isInteger(n) && n > 0)
+      .filter(n =>
+        Number.isInteger(n) && n > 0
+      )
   )].sort((a, b) => a - b);
 
   const available = new Set(
@@ -1309,26 +1543,31 @@ function par3SetWeeks(weeks) {
 
   if (!numbers.length) {
     numbers.push(
-      ...[...available].sort((a, b) => a - b)
+      ...[...available]
+        .sort((a, b) => a - b)
     );
   }
 
-  // Automatically use the first unfinished week.
-  const activeWeek = weeks
-    .filter(w => w.finalized === false)
+  const unfinishedWeek = weeks
+    .filter(w => !w.finalized)
     .map(w => Number(w.week_number))
-    .filter(n => Number.isInteger(n) && n > 0)
+    .filter(n =>
+      Number.isInteger(n) && n > 0
+    )
     .sort((a, b) => a - b)[0] ??
+    null;
+
+  const activeWeek =
+    unfinishedWeek ??
     numbers.at(-1) ??
     null;
 
-  // Follow the active week unless a visitor
-  // manually selects a different week.
   if (
     !par3ManualWeekSelection ||
     !numbers.includes(par3SelectedWeek)
   ) {
     par3SelectedWeek = activeWeek;
+
     par3ManualWeekSelection = false;
   }
 
@@ -1336,17 +1575,146 @@ function par3SetWeeks(weeks) {
     numbers.map(n => `
 <option value="${n}">
 Week ${n}${
-  n === activeWeek
+  n === unfinishedWeek
     ? " · Current"
     : available.has(n)
       ? " · Results"
       : ""
 }
-</option>`).join("");
+</option>`).join("") ||
+    '<option value="">No weeks available</option>';
+
+  $("par3Week").disabled =
+    numbers.length === 0;
 
   if (par3SelectedWeek !== null) {
     $("par3Week").value =
       String(par3SelectedWeek);
+  }
+}
+
+function resetPar3(sessionId) {
+  ++par3RequestVersion;
+
+  par3Loading = false;
+
+  par3SessionId = sessionId;
+
+  par3Shots = [];
+
+  par3SelectedWeek = null;
+
+  par3ManualWeekSelection = false;
+
+  par3Loaded = false;
+
+  par3Error = "";
+
+  $("par3Week").innerHTML =
+    '<option value="">Loading…</option>';
+
+  $("par3Week").disabled = true;
+
+  par3Render();
+}
+
+async function loadPar3(force = false) {
+  if (!db || db.session_id == null) {
+    return;
+  }
+
+  if (sessionSwitching && !force) {
+    return;
+  }
+
+  const sessionId = db.session_id;
+
+  if (
+    String(par3SessionId) !==
+    String(sessionId)
+  ) {
+    resetPar3(sessionId);
+  }
+
+  if (par3Loading && !force) return;
+
+  const version = ++par3RequestVersion;
+
+  par3Loading = true;
+
+  try {
+    const shots = await window.sglFetch(
+      "sgl_par3_shots",
+      {
+        sessionId,
+
+        select:
+          "week_number,tournament_id,username,hole_number,distance_ft"
+      }
+    );
+
+    if (
+      version !== par3RequestVersion ||
+      String(db.session_id) !==
+        String(sessionId)
+    ) {
+      return;
+    }
+
+    par3Shots = shots
+      .map(s => ({
+        week_number:
+          Number(s.week_number),
+
+        tournament_id:
+          Number(s.tournament_id),
+
+        username:
+          String(s.username || ""),
+
+        hole_number:
+          Number(s.hole_number),
+
+        distance_ft:
+          s.distance_ft == null
+            ? NaN
+            : Number(s.distance_ft)
+      }))
+      .filter(s =>
+        Number.isInteger(s.week_number) &&
+        Number.isInteger(s.hole_number) &&
+        s.hole_number >= 1 &&
+        s.hole_number <= 18 &&
+        Number.isFinite(s.distance_ft) &&
+        s.distance_ft >= 0 &&
+        s.username
+      );
+
+    par3SetWeeks(db.weeks);
+
+    par3Loaded = true;
+
+    par3Error = "";
+
+  } catch (error) {
+    if (
+      version !== par3RequestVersion
+    ) return;
+
+    console.error(
+      "Par 3 leaderboard error:",
+      error
+    );
+
+    par3Error = error.message;
+
+  } finally {
+    if (
+      version === par3RequestVersion
+    ) {
+      par3Loading = false;
+      par3Render();
+    }
   }
 }
 
@@ -1361,84 +1729,215 @@ $("par3SeasonBtn").onclick = () => {
 };
 
 $("par3Week").onchange = event => {
-  par3SelectedWeek = Number(event.target.value);
+  par3SelectedWeek =
+    Number(event.target.value);
+
   par3ManualWeekSelection = true;
+
   par3Render();
 };
 
-async function loadPar3() {
-  if (par3Loading) return;
+// ==========================================
+// SHARED SESSION EVENTS
+// ==========================================
 
-  par3Loading = true;
-
-  try {
-    const [shots, weeks] = await Promise.all([
-      par3Fetch(
-        "sgl_par3_shots",
-        "week_number,tournament_id,username,hole_number,distance_ft"
-      ),
-      par3Fetch(
-        "sgl_weeks",
-        "week_number,finalized"
-      )
-    ]);
-
-    par3Shots = shots.map(s => ({
-      week_number: Number(s.week_number),
-      tournament_id: Number(s.tournament_id),
-      username: String(s.username || ""),
-      hole_number: Number(s.hole_number),
-      distance_ft: Number(s.distance_ft)
-    })).filter(s =>
-      Number.isInteger(s.week_number) &&
-      Number.isInteger(s.hole_number) &&
-      s.hole_number >= 1 &&
-      s.hole_number <= 18 &&
-      Number.isFinite(s.distance_ft) &&
-      s.distance_ft >= 0 &&
-      s.username
+window.addEventListener(
+  "sgl-session-loading",
+  event => {
+    resetPar3(
+      event.detail.session.id
     );
+  }
+);
 
-    par3SetWeeks(weeks);
+window.addEventListener(
+  "sgl-standings-loaded",
+  event => {
+    const data = event.detail;
 
-    par3Loaded = true;
-    par3Error = "";
+    if (!data || !data.session) {
+      return;
+    }
+
+    const changed =
+      String(db?.session_id) !==
+      String(data.session_id);
+
+    db = data;
+
+    leagueFullyLoaded = true;
+
+    currentWeek =
+      Number(data.currentWeek) ||
+      window.sglCurrentWeek(data.weeks);
+
+    if (changed) {
+      archiveWeek = 0;
+
+      resetPar3(data.session_id);
+    }
+
+    renderAll();
+
+    loadPar3(true);
+
+    $("loadStatus").textContent =
+      `League data loaded · ${db.players.length} golfers`;
+
+    $("loadStatus").style.display =
+      "none";
+
+    $("leagueResults").hidden =
+      false;
+
+    $("leagueResults").setAttribute(
+      "aria-busy",
+      "false"
+    );
+  }
+);
+
+window.addEventListener(
+  "sgl-standings-refreshed",
+  event => {
+    if (sessionSwitching) return;
+
+    const data = event.detail;
+
+    if (!data || !data.session) {
+      return;
+    }
+
+    if (
+      db &&
+      String(data.session_id) !==
+        String(db.session_id)
+    ) return;
+
+    db = data;
+
+    currentWeek =
+      Number(data.currentWeek) ||
+      window.sglCurrentWeek(data.weeks);
+
+    leagueFullyLoaded = true;
+
+    renderAll();
+
+    loadPar3();
+  }
+);
+
+window.addEventListener(
+  "sgl-session-error",
+  () => {
+    if (db) {
+      resetPar3(db.session_id);
+      loadPar3(true);
+    }
+  }
+);
+
+// ==========================================
+// INITIAL LOAD
+// ==========================================
+
+async function startLeague() {
+  try {
+    if (
+      typeof window.loadSGLStandings !==
+      "function"
+    ) {
+      throw new Error(
+        "standings.js did not load."
+      );
+    }
+
+    await window.loadSGLStandings();
+
+    if (!db) {
+      throw new Error(
+        "No league data was returned."
+      );
+    }
 
   } catch (error) {
     console.error(
-      "Par 3 leaderboard error:",
+      "Taylorville SGL standings error:",
       error
     );
 
-    par3Error = error.message;
+    $("sessionBadge").textContent =
+      "UNAVAILABLE";
 
-  } finally {
-    par3Loading = false;
-    par3Render();
+    $("sessionStatus").textContent =
+      "League data could not load.";
+
+    $("loadStatus").style.display =
+      "block";
+
+    $("loadStatus").className =
+      "error small";
+
+    $("loadStatus").textContent =
+      "Standings could not load: " +
+      error.message;
+
+    $("leagueResults").hidden = true;
   }
 }
 
-// Load Par 3 independently.
-loadPar3();
+// ==========================================
+// AUTOMATIC REFRESH
+// ==========================================
 
-// Refresh Par 3 every 60 seconds.
-setInterval(() => {
-  if (document.visibilityState === "visible") {
-    loadPar3();
+let sglLastRefresh = Date.now();
+
+function refreshLeague() {
+  if (
+    sessionSwitching ||
+    document.visibilityState !== "visible"
+  ) return;
+
+  sglLastRefresh = Date.now();
+
+  if (!db) {
+    startLeague();
+    return;
   }
-}, 60000);
 
-// Refresh when returning to the website.
+  if (
+    typeof window.refreshSGLStandings ===
+    "function"
+  ) {
+    window.refreshSGLStandings();
+  }
+}
+
+setInterval(
+  refreshLeague,
+  60000
+);
+
 document.addEventListener(
   "visibilitychange",
   () => {
-    if (document.visibilityState === "visible") {
-      loadPar3();
+    if (
+      document.visibilityState === "visible" &&
+      Date.now() - sglLastRefresh > 60000
+    ) {
+      refreshLeague();
     }
   }
 );
 
 </script>
-<script src="skins.js?v=4"></script>
+
+<script src="skins.js?v=20261124-5"></script>
+
+<script>
+startLeague();
+</script>
+
 </body>
 </html>
