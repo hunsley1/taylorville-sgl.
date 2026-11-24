@@ -1,4 +1,3 @@
-
 name: SGT Automatic Tournament Discovery
 
 on:
@@ -16,112 +15,89 @@ concurrency:
 jobs:
   discover-tournaments:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
-      - name: Discover and save tournament IDs
+      - name: Discover session tournaments
         env:
-          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_URL: https://xgjziyopzeeneccfaszb.supabase.co
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
         run: |
           python3 - <<'PY'
-          import json
           import os
           import re
-          import urllib.error
-          import urllib.parse
+          import json
+          import time
           import urllib.request
+          import urllib.parse
           from html.parser import HTMLParser
 
           BASE = os.environ["SUPABASE_URL"].rstrip("/")
-          KEY = os.environ.get("SUPABASE_KEY", "")
-          SGT = "https://simulatorgolftour.com"
+          KEY = os.environ["SUPABASE_KEY"]
 
           TOURS = {
               "Hunsley1": 3927,
               "Hunsley2": 3085
           }
 
-          if not KEY:
-              raise RuntimeError(
-                  "Missing Supabase service role secret"
-              )
+          SGT = "https://simulatorgolftour.com"
 
-          def db(path, method="GET", data=None):
+          def request(url, method="GET", data=None, headers=None):
+              for attempt in range(3):
+                  try:
+                      req = urllib.request.Request(
+                          url,
+                          data=data,
+                          headers=headers or {},
+                          method=method
+                      )
+                      with urllib.request.urlopen(
+                          req, timeout=40
+                      ) as response:
+                          return response.read().decode("utf-8")
+                  except Exception as exc:
+                      print(
+                          f"Request attempt {attempt + 1}: {exc}"
+                      )
+                      if attempt == 2:
+                          raise
+                      time.sleep(3 * (attempt + 1))
+
+          def supabase(table, params=None, method="GET", payload=None):
+              url = f"{BASE}/rest/v1/{table}"
+
+              if params:
+                  url += "?" + urllib.parse.urlencode(params)
+
               headers = {
                   "apikey": KEY,
-                  "Authorization": "Bearer " + KEY,
-                  "Accept": "application/json"
+                  "Authorization": f"Bearer {KEY}",
+                  "Content-Type": "application/json",
+                  "Prefer": "return=representation"
               }
 
-              body = None
-
-              if data is not None:
-                  body = json.dumps(data).encode()
-                  headers["Content-Type"] = (
-                      "application/json"
-                  )
-                  headers["Prefer"] = (
-                      "return=representation"
-                  )
-
-              request = urllib.request.Request(
-                  BASE + "/rest/v1/" + path,
-                  data=body,
-                  headers=headers,
-                  method=method
+              data = (
+                  json.dumps(payload).encode("utf-8")
+                  if payload is not None
+                  else None
               )
 
-              try:
-                  with urllib.request.urlopen(
-                      request, timeout=30
-                  ) as response:
-                      content = response.read()
-                      return (
-                          json.loads(content)
-                          if content else []
-                      )
-
-              except urllib.error.HTTPError as error:
-                  detail = error.read().decode(
-                      "utf-8", "replace"
-                  )[:600]
-
-                  raise RuntimeError(
-                      f"Supabase {method} "
-                      f"{path.split('?')[0]} "
-                      f"failed: HTTP {error.code}: "
-                      f"{detail}"
-                  ) from None
-
-          def fetch_events(tour_id):
-              url = (
-                  f"{SGT}/sgt-api/tour/"
-                  f"{tour_id}/events"
-              )
-
-              request = urllib.request.Request(
+              result = request(
                   url,
-                  headers={
-                      "User-Agent": "Mozilla/5.0",
-                      "Accept": "text/html,*/*",
-                      "Referer": SGT + "/"
-                  }
+                  method=method,
+                  data=data,
+                  headers=headers
               )
 
-              with urllib.request.urlopen(
-                  request, timeout=30
-              ) as response:
-                  return response.read().decode(
-                      "utf-8", "replace"
-                  )
+              return json.loads(result) if result else []
 
           class EventParser(HTMLParser):
+
               def __init__(self):
                   super().__init__()
                   self.events = []
                   self.current_id = None
-                  self.collecting = False
                   self.parts = []
 
               def handle_starttag(self, tag, attrs):
@@ -130,228 +106,289 @@ jobs:
                   if tag != "a":
                       return
 
-                  classes = attrs.get(
-                      "class", ""
-                  ).split()
+                  classes = attrs.get("class", "").split()
 
                   if "event-card-name" not in classes:
                       return
 
-                  match = re.fullmatch(
+                  match = re.search(
                       r"/tournament/(\d+)",
                       attrs.get("href", "")
                   )
 
                   if match:
-                      self.current_id = int(
-                          match.group(1)
-                      )
-                      self.collecting = True
+                      self.current_id = int(match.group(1))
                       self.parts = []
 
               def handle_data(self, data):
-                  if self.collecting:
+                  if self.current_id is not None:
                       self.parts.append(data)
 
               def handle_endtag(self, tag):
-                  if tag == "a" and self.collecting:
-                      name = "".join(
-                          self.parts
-                      ).strip()
+                  if tag == "a" and self.current_id is not None:
+                      name = " ".join(
+                          "".join(self.parts).split()
+                      )
 
                       self.events.append(
                           (self.current_id, name)
                       )
 
                       self.current_id = None
-                      self.collecting = False
                       self.parts = []
 
-          def discover(tour_id):
+          sessions = supabase(
+              "sgl_sessions",
+              {
+                  "select": "*",
+                  "status": "eq.active"
+              }
+          )
+
+          if len(sessions) != 1:
+              raise RuntimeError(
+                  "Expected exactly one active session."
+              )
+
+          session = sessions[0]
+
+          session_id = int(session["id"])
+          year = int(session["season_year"])
+          session_number = int(session["session_number"])
+          total_weeks = int(session["total_weeks"])
+
+          print(f"Active session: {session['session_name']}")
+          print(f"Session ID: {session_id}")
+          print(f"Total weeks: {total_weeks}")
+
+          weeks = supabase(
+              "sgl_weeks",
+              {
+                  "select": "*",
+                  "session_id": f"eq.{session_id}",
+                  "order": "week_number.asc"
+              }
+          )
+
+          if not weeks:
+              raise RuntimeError(
+                  "No weeks exist for the active session."
+              )
+
+          week_map = {
+              int(w["week_number"]): w
+              for w in weeks
+          }
+
+          legacy_session = (
+              year == 2026 and session_number == 1
+          )
+
+          session_pattern = re.compile(
+              rf"^TGSL[\s_-]+{year}"
+              rf"[\s_-]+S{session_number}"
+              rf"[\s_-]+Week[\s_-]*(\d+)$",
+              re.IGNORECASE
+          )
+
+          legacy_pattern = re.compile(
+              r"^TGSL[\s_-]*Week[\s_-]*(\d+)$",
+              re.IGNORECASE
+          )
+
+          def discover(tour_name, tour_id):
+              url = f"{SGT}/sgt-api/tour/{tour_id}/events"
+
+              html = request(
+                  url,
+                  headers={
+                      "User-Agent": "Mozilla/5.0",
+                      "Accept": "text/html"
+                  }
+              )
+
               parser = EventParser()
-              parser.feed(fetch_events(tour_id))
+              parser.feed(html)
 
               found = {}
 
               for tournament_id, name in parser.events:
-                  match = re.search(
-                      r"\bTGSL[\s_-]*Week[\s_-]*(\d+)\b",
-                      name,
-                      re.I
-                  )
+
+                  match = session_pattern.fullmatch(name)
+
+                  if not match and legacy_session:
+                      match = legacy_pattern.fullmatch(name)
 
                   if not match:
                       continue
 
                   week = int(match.group(1))
 
-                  if week < 5:
+                  if week < 1 or week > total_weeks:
                       continue
 
-                  if week in found:
+                  if (
+                      week in found
+                      and found[week] != tournament_id
+                  ):
                       raise RuntimeError(
-                          f"Duplicate Week {week} "
-                          f"on tour {tour_id}"
+                          f"Duplicate tournament for "
+                          f"{tour_name}, Week {week}"
                       )
 
                   found[week] = tournament_id
 
                   print(
-                      f"Tour {tour_id}: "
-                      f"Week {week} = "
-                      f"{tournament_id} ({name})",
-                      flush=True
+                      f"{tour_name}: Week {week} "
+                      f"-> Tournament {tournament_id}"
                   )
 
               return found
 
-          print(
-              "=== AUTOMATIC TOURNAMENT DISCOVERY ===",
-              flush=True
-          )
-
-          # Verify Supabase access first.
-          weeks = db(
-              "sgl_weeks?select="
-              "week_number,"
-              "tournament_1_id,"
-              "tournament_2_id"
-              "&order=week_number.asc"
-          )
-
-          print(
-              f"Supabase connected: "
-              f"{len(weeks)} weeks loaded",
-              flush=True
-          )
-
-          by_week = {
-              int(row["week_number"]): row
-              for row in weeks
+          discovered = {
+              name: discover(name, tour_id)
+              for name, tour_id in TOURS.items()
           }
 
-          reference = by_week.get(4)
+          first = discovered["Hunsley1"]
+          second = discovered["Hunsley2"]
 
-          if not reference:
+          # Preserve the existing tournament column order.
+          # Read the original Session 1 Week 4 mapping.
+
+          original_sessions = supabase(
+              "sgl_sessions",
+              {
+                  "select": "id",
+                  "season_year": "eq.2026",
+                  "session_number": "eq.1"
+              }
+          )
+
+          if len(original_sessions) != 1:
               raise RuntimeError(
-                  "Week 4 reference missing"
+                  "Original session mapping not found."
               )
 
-          first = str(
-              reference.get("tournament_1_id")
-          )
-          second = str(
-              reference.get("tournament_2_id")
-          )
+          original_id = original_sessions[0]["id"]
 
-          if first == "83765" and second == "83767":
-              columns = {
-                  "Hunsley1": "tournament_1_id",
-                  "Hunsley2": "tournament_2_id"
+          original_week = supabase(
+              "sgl_weeks",
+              {
+                  "select": "tournament_1_id,tournament_2_id",
+                  "session_id": f"eq.{original_id}",
+                  "week_number": "eq.4"
               }
+          )
 
-          elif first == "83767" and second == "83765":
-              columns = {
-                  "Hunsley1": "tournament_2_id",
-                  "Hunsley2": "tournament_1_id"
-              }
+          if len(original_week) != 1:
+              raise RuntimeError(
+                  "Original tournament mapping not found."
+              )
 
+          mapping = original_week[0]
+
+          original_pair = (
+              mapping["tournament_1_id"],
+              mapping["tournament_2_id"]
+          )
+
+          if original_pair == (83765, 83767):
+              reverse_order = False
+          elif original_pair == (83767, 83765):
+              reverse_order = True
           else:
               raise RuntimeError(
-                  "Week 4 tournament IDs do not "
-                  "match the verified tour IDs. "
-                  "No changes made."
+                  "Unexpected original tournament mapping."
               )
-
-          events = {}
-
-          for name, tour_id in TOURS.items():
-              print(
-                  f"Checking {name} ({tour_id})",
-                  flush=True
-              )
-              events[name] = discover(tour_id)
-
-          common_weeks = sorted(
-              set(events["Hunsley1"])
-              & set(events["Hunsley2"])
-          )
 
           updated = 0
 
-          for week in common_weeks:
-              row = by_week.get(week)
+          for week in sorted(set(first) & set(second)):
 
-              if row is None:
+              row = week_map.get(week)
+
+              if not row:
+                  print(f"Week {week}: Not configured.")
+                  continue
+
+              if row["finalized"]:
+                  print(f"Week {week}: Finalized. Skipping.")
+                  continue
+
+              if legacy_session and week < 5:
+                  continue
+
+              tid1 = first[week]
+              tid2 = second[week]
+
+              if reverse_order:
+                  tid1, tid2 = tid2, tid1
+
+              if tid1 == tid2:
+                  raise RuntimeError(
+                      f"Week {week}: Duplicate tournament IDs."
+                  )
+
+              old1 = row.get("tournament_1_id")
+              old2 = row.get("tournament_2_id")
+
+              if old1 not in (None, tid1):
                   print(
-                      f"Week {week}: "
-                      "not in Supabase, skipped",
-                      flush=True
+                      f"Week {week}: Tournament 1 conflict. "
+                      "Existing ID preserved."
                   )
                   continue
 
-              changes = {}
-              conflict = False
-
-              for name in TOURS:
-                  column = columns[name]
-                  discovered = events[name][week]
-                  existing = row.get(column)
-
-                  if existing not in (None, ""):
-                      if str(existing) != str(discovered):
-                          print(
-                              f"Week {week}: "
-                              f"conflicting {column}",
-                              flush=True
-                          )
-                          conflict = True
-                  else:
-                      changes[column] = discovered
-
-              if conflict:
+              if old2 not in (None, tid2):
                   print(
-                      f"Week {week}: skipped",
-                      flush=True
+                      f"Week {week}: Tournament 2 conflict. "
+                      "Existing ID preserved."
                   )
                   continue
 
-              if not changes:
-                  print(
-                      f"Week {week}: already configured",
-                      flush=True
-                  )
+              if old1 == tid1 and old2 == tid2:
+                  print(f"Week {week}: Already configured.")
                   continue
 
-              filters = urllib.parse.urlencode({
-                  "week_number": f"eq.{week}"
-              })
+              filters = {
+                  "session_id": f"eq.{session_id}",
+                  "week_number": f"eq.{week}",
+                  "finalized": "eq.false",
+                  "tournament_1_id": (
+                      "is.null" if old1 is None
+                      else f"eq.{old1}"
+                  ),
+                  "tournament_2_id": (
+                      "is.null" if old2 is None
+                      else f"eq.{old2}"
+                  )
+              }
 
-              result = db(
-                  "sgl_weeks?" + filters,
+              result = supabase(
+                  "sgl_weeks",
+                  filters,
                   method="PATCH",
-                  data=changes
+                  payload={
+                      "tournament_1_id": tid1,
+                      "tournament_2_id": tid2
+                  }
               )
 
               if len(result) != 1:
                   raise RuntimeError(
-                      f"Week {week}: expected one "
-                      "updated database row"
+                      f"Week {week}: Update not confirmed."
                   )
 
               updated += 1
 
               print(
-                  f"Week {week}: saved {changes}",
-                  flush=True
+                  f"Week {week}: Saved "
+                  f"{tid1} and {tid2}"
               )
 
           print(
-              "\nDISCOVERY COMPLETE",
-              flush=True
-          )
-          print(
-              f"Weeks updated: {updated}",
-              flush=True
+              f"Discovery complete. "
+              f"{updated} weeks updated."
           )
           PY
