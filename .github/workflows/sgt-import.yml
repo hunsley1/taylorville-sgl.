@@ -1,4 +1,3 @@
-
 name: SGT Automatic Score Import
 
 on:
@@ -16,6 +15,7 @@ concurrency:
 jobs:
   import-scores:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Install HTML parser
@@ -34,6 +34,7 @@ jobs:
           import time
           import urllib.parse
           import urllib.request
+          import urllib.error
 
           from bs4 import BeautifulSoup
 
@@ -69,21 +70,79 @@ jobs:
                       "return=representation"
                   )
 
-              request = urllib.request.Request(
-                  BASE + "/rest/v1/" + path,
-                  data=body,
-                  headers=headers,
-                  method=method
-              )
+              for attempt in range(3):
+                  try:
+                      request = urllib.request.Request(
+                          BASE + "/rest/v1/" + path,
+                          data=body,
+                          headers=headers,
+                          method=method
+                      )
 
-              with urllib.request.urlopen(
-                  request, timeout=30
-              ) as response:
-                  content = response.read()
-                  return (
-                      json.loads(content)
-                      if content else []
+                      with urllib.request.urlopen(
+                          request, timeout=30
+                      ) as response:
+                          content = response.read()
+                          return (
+                              json.loads(content)
+                              if content else []
+                          )
+
+                  except urllib.error.HTTPError as error:
+                      detail = error.read().decode(
+                          "utf-8", "replace"
+                      )
+
+                      print(
+                          f"Supabase HTTP {error.code}: "
+                          f"{detail}",
+                          flush=True
+                      )
+
+                      if error.code not in (
+                          408, 429, 500, 502, 503, 504
+                      ):
+                          raise
+
+                      if attempt == 2:
+                          raise
+
+                  except Exception as error:
+                      print(
+                          f"Supabase attempt "
+                          f"{attempt + 1}: {error}",
+                          flush=True
+                      )
+
+                      if attempt == 2:
+                          raise
+
+                  time.sleep(3 * (attempt + 1))
+
+          def read_rows(table, params, order):
+              rows = []
+              offset = 0
+              page_size = 500
+
+              while True:
+                  query = dict(params)
+                  query["order"] = order
+                  query["limit"] = page_size
+                  query["offset"] = offset
+
+                  page = db(
+                      table + "?" +
+                      urllib.parse.urlencode(query)
                   )
+
+                  rows.extend(page)
+
+                  if not page:
+                      break
+
+                  offset += len(page)
+
+              return rows
 
           def fetch(path):
               url = SGT + path
@@ -109,11 +168,13 @@ jobs:
 
                   except Exception as error:
                       last_error = error
+
                       print(
                           f"Request attempt {attempt+1} "
                           f"failed: {url}: {error}",
                           flush=True
                       )
+
                       if attempt < 2:
                           time.sleep(3 * (attempt+1))
 
@@ -126,22 +187,78 @@ jobs:
                   str(value).casefold().split()
               )
 
-          players = db(
-              "sgl_players?select=username"
+          sessions = db(
+              "sgl_sessions?"
+              "select=id,session_name,total_weeks"
+              "&status=eq.active"
           )
 
-          roster = {
-              normalize(p["username"]): p["username"]
-              for p in players
-          }
+          if not sessions:
+              print(
+                  "No active session. Nothing to import.",
+                  flush=True
+              )
+              raise SystemExit(0)
 
-          weeks = db(
-              "sgl_weeks?select="
-              "week_number,"
-              "tournament_1_id,"
-              "tournament_2_id,"
-              "course_par"
-              "&order=week_number.asc"
+          if len(sessions) != 1:
+              raise RuntimeError(
+                  "Expected exactly one active session"
+              )
+
+          session = sessions[0]
+          session_id = int(session["id"])
+
+          print(
+              f"Active session: "
+              f"{session['session_name']}",
+              flush=True
+          )
+
+          print(
+              f"Session ID: {session_id}",
+              flush=True
+          )
+
+          print(
+              f"Total weeks: {session['total_weeks']}",
+              flush=True
+          )
+
+          players = read_rows(
+              "sgl_players",
+              {
+                  "select": "username",
+                  "session_id": f"eq.{session_id}"
+              },
+              "username.asc"
+          )
+
+          roster = {}
+
+          for player in players:
+              username = player["username"]
+              key = normalize(username)
+
+              if key in roster:
+                  raise RuntimeError(
+                      f"Duplicate roster name: {username}"
+                  )
+
+              roster[key] = username
+
+          weeks = read_rows(
+              "sgl_weeks",
+              {
+                  "select": (
+                      "week_number,"
+                      "tournament_1_id,"
+                      "tournament_2_id,"
+                      "course_par,"
+                      "finalized"
+                  ),
+                  "session_id": f"eq.{session_id}"
+              },
+              "week_number.asc"
           )
 
           print(
@@ -245,9 +362,6 @@ jobs:
 
                   scores[player] = score
 
-                  # In the net leaderboard, SGT
-                  # displays handicap next to
-                  # the player's name.
                   if kind == "net":
                       player_cell = row.select_one(
                           "td.player"
@@ -280,17 +394,14 @@ jobs:
 
               for name in sorted(unmatched):
                   print(
-                      f"Unmatched SGT player: "
-                      f"{name}",
+                      f"Unmatched SGT player: {name}",
                       flush=True
                   )
 
               if finished_rows and not scores:
-                  print(
-                      f"WARNING: {tid} {kind} "
-                      "has finished players but "
-                      "none matched the roster",
-                      flush=True
+                  raise RuntimeError(
+                      f"{tid} {kind}: finished players "
+                      "found but none matched the roster"
                   )
 
               return scores, handicaps
@@ -309,43 +420,57 @@ jobs:
                   html, tid, kind
               )
 
-          def inspect_prizes(tid):
-              for name, suffix in [
-                  ("CTP", "ctp"),
-                  ("LONG DRIVE", "ld")
-              ]:
-                  try:
-                      html = fetch(
-                          f"/sgt-api/leaderboard/"
-                          f"{tid}/{suffix}"
-                      )
+          def verify_week_open(number, tournaments):
+              active = db(
+                  "sgl_sessions?"
+                  "select=id"
+                  f"&id=eq.{session_id}"
+                  "&status=eq.active"
+              )
 
-                      soup = BeautifulSoup(
-                          html, "html.parser"
-                      )
+              if len(active) != 1:
+                  return False
 
-                      text = soup.get_text(
-                          " ", strip=True
-                      )
+              current = db(
+                  "sgl_weeks?"
+                  "select=finalized,"
+                  "tournament_1_id,tournament_2_id"
+                  f"&session_id=eq.{session_id}"
+                  f"&week_number=eq.{number}"
+              )
 
-                      print(
-                          f"{tid} {name}: "
-                          f"{text[:250]}",
-                          flush=True
-                      )
+              if len(current) != 1:
+                  return False
 
-                  except Exception as error:
-                      print(
-                          f"{tid} {name} inspection "
-                          f"failed: {error}",
-                          flush=True
-                      )
+              row = current[0]
+
+              if row["finalized"]:
+                  return False
+
+              current_ids = [
+                  str(row[field]).strip()
+                  for field in (
+                      "tournament_1_id",
+                      "tournament_2_id"
+                  )
+                  if row.get(field) is not None
+              ]
+
+              return current_ids == tournaments
 
           total_saved = 0
           failures = 0
 
           for week in weeks:
               number = week["week_number"]
+
+              if week["finalized"]:
+                  print(
+                      f"Week {number}: "
+                      "Finalized. Protected.",
+                      flush=True
+                  )
+                  continue
 
               tournaments = []
 
@@ -358,16 +483,13 @@ jobs:
                   if value is not None:
                       tid = str(value).strip()
 
-                      if (
-                          tid
-                          and tid not in tournaments
-                      ):
+                      if tid and tid not in tournaments:
                           tournaments.append(tid)
 
-              if not tournaments:
+              if len(tournaments) != 2:
                   print(
                       f"Week {number}: "
-                      "no tournaments configured",
+                      "Waiting for both tournaments",
                       flush=True
                   )
                   continue
@@ -376,7 +498,9 @@ jobs:
                   "\n" + "=" * 55,
                   flush=True
               )
+
               print(
+                  f"{session['session_name']} "
                   f"WEEK {number}: {tournaments}",
                   flush=True
               )
@@ -422,6 +546,7 @@ jobs:
                               )
 
                           record = {
+                              "session_id": session_id,
                               "week_number": number,
                               "username": player,
                               "gross_relative":
@@ -448,8 +573,6 @@ jobs:
                               flush=True
                           )
 
-                      inspect_prizes(tid)
-
                   except Exception as error:
                       week_failed = True
                       failures += 1
@@ -464,8 +587,8 @@ jobs:
               if week_failed:
                   print(
                       f"Week {number}: "
-                      "no database writes "
-                      "because a tournament failed",
+                      "No database writes because "
+                      "a tournament failed",
                       flush=True
                   )
                   continue
@@ -473,14 +596,11 @@ jobs:
               if not records:
                   print(
                       f"Week {number}: "
-                      "no completed matched scores",
+                      "No completed matched scores",
                       flush=True
                   )
                   continue
 
-              # Separate records with handicaps
-              # so the upsert uses consistent
-              # columns within each batch.
               with_handicap = []
               without_handicap = []
 
@@ -498,9 +618,19 @@ jobs:
                       if not batch:
                           continue
 
+                      if not verify_week_open(
+                          number, tournaments
+                      ):
+                          raise RuntimeError(
+                              "Session or week changed "
+                              "during import"
+                          )
+
                       saved = db(
                           "sgl_scores?on_conflict="
-                          "username,week_number",
+                          "session_id,"
+                          "week_number,"
+                          "username",
                           method="POST",
                           data=batch
                       )
@@ -515,7 +645,7 @@ jobs:
 
                   print(
                       f"Week {number}: "
-                      f"saved {len(records)} "
+                      f"Saved {len(records)} "
                       "completed scores",
                       flush=True
                   )
@@ -531,6 +661,11 @@ jobs:
 
           print(
               "\n" + "=" * 55,
+              flush=True
+          )
+
+          print(
+              f"SESSION: {session['session_name']}",
               flush=True
           )
 
