@@ -1,4 +1,3 @@
-
 name: SGT Automatic Gross Skins Import
 
 on:
@@ -16,6 +15,7 @@ concurrency:
 jobs:
   import-skins:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Install HTML parser
@@ -34,6 +34,7 @@ jobs:
           import time
           import urllib.parse
           import urllib.request
+          import urllib.error
 
           from bs4 import BeautifulSoup
 
@@ -44,6 +45,11 @@ jobs:
           ALIASES = {
               "mikefnhoncho47": "MIKEFNHONCH047"
           }
+
+          if not KEY:
+              raise RuntimeError(
+                  "Missing Supabase service role secret"
+              )
 
           def db(path, method="GET", data=None):
               headers = {
@@ -56,24 +62,89 @@ jobs:
 
               if data is not None:
                   body = json.dumps(data).encode()
-                  headers["Content-Type"] = "application/json"
+
+                  headers["Content-Type"] = (
+                      "application/json"
+                  )
+
                   headers["Prefer"] = (
                       "resolution=merge-duplicates,"
                       "return=representation"
                   )
 
-              request = urllib.request.Request(
-                  BASE + "/rest/v1/" + path,
-                  data=body,
-                  headers=headers,
-                  method=method
-              )
+              for attempt in range(3):
+                  try:
+                      request = urllib.request.Request(
+                          BASE + "/rest/v1/" + path,
+                          data=body,
+                          headers=headers,
+                          method=method
+                      )
 
-              with urllib.request.urlopen(
-                  request, timeout=40
-              ) as response:
-                  raw = response.read()
-                  return json.loads(raw) if raw else []
+                      with urllib.request.urlopen(
+                          request, timeout=40
+                      ) as response:
+                          raw = response.read()
+
+                          return (
+                              json.loads(raw)
+                              if raw else []
+                          )
+
+                  except urllib.error.HTTPError as error:
+                      detail = error.read().decode(
+                          "utf-8", "replace"
+                      )
+
+                      print(
+                          f"Supabase HTTP {error.code}: "
+                          f"{detail[:500]}",
+                          flush=True
+                      )
+
+                      if error.code not in (
+                          408, 429, 500, 502, 503, 504
+                      ):
+                          raise
+
+                      if attempt == 2:
+                          raise
+
+                  except Exception as error:
+                      print(
+                          f"Supabase attempt "
+                          f"{attempt + 1}: {error}",
+                          flush=True
+                      )
+
+                      if attempt == 2:
+                          raise
+
+                  time.sleep(3 * (attempt + 1))
+
+          def read_rows(table, params, order):
+              rows = []
+              offset = 0
+
+              while True:
+                  query = dict(params)
+
+                  query["order"] = order
+                  query["limit"] = 500
+                  query["offset"] = offset
+
+                  page = db(
+                      table + "?" +
+                      urllib.parse.urlencode(query)
+                  )
+
+                  if not page:
+                      break
+
+                  rows.extend(page)
+                  offset += len(page)
+
+              return rows
 
           def fetch(path):
               url = SGT + path
@@ -100,13 +171,15 @@ jobs:
 
                   except Exception as error:
                       last_error = error
+
                       print(
-                          f"Retry {attempt+1}: "
+                          f"Retry {attempt + 1}: "
                           f"{url}: {error}",
                           flush=True
                       )
+
                       if attempt < 2:
-                          time.sleep(3 * (attempt+1))
+                          time.sleep(3 * (attempt + 1))
 
               raise RuntimeError(str(last_error))
 
@@ -115,21 +188,117 @@ jobs:
                   str(value).casefold().split()
               )
 
-          players = db(
-              "sgl_players?select=username"
+          sessions = db(
+              "sgl_sessions?"
+              "select=id,session_name,total_weeks"
+              "&status=eq.active"
           )
 
-          roster = {
-              normalize(p["username"]): p["username"]
-              for p in players
-          }
+          if not sessions:
+              print(
+                  "No active session. Nothing to import.",
+                  flush=True
+              )
+              raise SystemExit(0)
 
-          weeks = db(
-              "sgl_weeks?select="
-              "week_number,"
-              "tournament_1_id,"
-              "tournament_2_id"
-              "&order=week_number.asc"
+          if len(sessions) != 1:
+              raise RuntimeError(
+                  "Expected exactly one active session"
+              )
+
+          session = sessions[0]
+          session_id = int(session["id"])
+
+          print(
+              "=== AUTOMATIC GROSS SKINS IMPORT ===",
+              flush=True
+          )
+
+          print(
+              f"Active session: "
+              f"{session['session_name']}",
+              flush=True
+          )
+
+          print(
+              f"Session ID: {session_id}",
+              flush=True
+          )
+
+          print(
+              f"Total weeks: {session['total_weeks']}",
+              flush=True
+          )
+
+          players = read_rows(
+              "sgl_players",
+              {
+                  "select": "username",
+                  "session_id": f"eq.{session_id}"
+              },
+              "username.asc"
+          )
+
+          roster = {}
+
+          for player in players:
+              username = player["username"]
+              key = normalize(username)
+
+              if key in roster:
+                  raise RuntimeError(
+                      f"Duplicate roster name: {username}"
+                  )
+
+              roster[key] = username
+
+          weeks = read_rows(
+              "sgl_weeks",
+              {
+                  "select": (
+                      "week_number,"
+                      "tournament_1_id,"
+                      "tournament_2_id,"
+                      "finalized"
+                  ),
+                  "session_id": f"eq.{session_id}"
+              },
+              "week_number.asc"
+          )
+
+          if not roster or not weeks:
+              raise RuntimeError(
+                  "Missing players or weeks"
+              )
+
+          existing_cards = read_rows(
+              "sgl_skins_player_scores",
+              {
+                  "select": (
+                      "week_number,username,"
+                      "tournament_id,scorecard_id,"
+                      "gross_total,hole_scores"
+                  ),
+                  "session_id": f"eq.{session_id}"
+              },
+              "week_number.asc,username.asc"
+          )
+
+          existing_skins = read_rows(
+              "sgl_skins",
+              {
+                  "select": "week_number,hole_number",
+                  "session_id": f"eq.{session_id}"
+              },
+              "week_number.asc,hole_number.asc"
+          )
+
+          print(
+              f"Loaded {len(roster)} players, "
+              f"{len(weeks)} weeks, "
+              f"{len(existing_cards)} existing scorecards "
+              f"and {len(existing_skins)} skins results",
+              flush=True
           )
 
           def match_player(name):
@@ -190,6 +359,11 @@ jobs:
 
                   total = int(values[20])
 
+                  if any(score < 1 for score in scores):
+                      raise ValueError(
+                          "Invalid hole score"
+                      )
+
                   if sum(scores) != total:
                       raise ValueError(
                           "Gross score total mismatch"
@@ -206,9 +380,17 @@ jobs:
 
               found = {}
 
-              for row in soup.select(
+              finished_rows = soup.select(
                   "tr.finished-card"
-              ):
+              )
+
+              print(
+                  f"Tournament {tid}: "
+                  f"{len(finished_rows)} finished players",
+                  flush=True
+              )
+
+              for row in finished_rows:
                   raw_name = row.get(
                       "data-player-name", ""
                   )
@@ -218,7 +400,8 @@ jobs:
                   if not username:
                       print(
                           f"Skipping non-league player: "
-                          f"{raw_name}"
+                          f"{raw_name}",
+                          flush=True
                       )
                       continue
 
@@ -250,6 +433,12 @@ jobs:
 
                   found[username] = match.group(1)
 
+              if finished_rows and not found:
+                  raise RuntimeError(
+                      f"Tournament {tid}: "
+                      "No finished players matched roster"
+                  )
+
               return found
 
           def calculate_skins(number, scorecards):
@@ -270,6 +459,7 @@ jobs:
 
                   if len(winners) == 1:
                       results.append({
+                          "session_id": session_id,
                           "week_number": number,
                           "hole_number": hole + 1,
                           "winner_username": winners[0],
@@ -278,11 +468,14 @@ jobs:
                           "carryover": 0,
                           "is_tied": False
                       })
+
                       carry = 0
+
                   else:
                       carry += 1
 
                       results.append({
+                          "session_id": session_id,
                           "week_number": number,
                           "hole_number": hole + 1,
                           "winner_username": None,
@@ -294,15 +487,59 @@ jobs:
 
               return results
 
-          print(
-              f"Loaded {len(roster)} league players",
-              flush=True
-          )
+          def verify_week_open(number, tids):
+              active = db(
+                  "sgl_sessions?"
+                  "select=id"
+                  f"&id=eq.{session_id}"
+                  "&status=eq.active"
+              )
+
+              if len(active) != 1:
+                  return False
+
+              current = db(
+                  "sgl_weeks?"
+                  "select=finalized,"
+                  "tournament_1_id,tournament_2_id"
+                  f"&session_id=eq.{session_id}"
+                  f"&week_number=eq.{number}"
+              )
+
+              if len(current) != 1:
+                  return False
+
+              row = current[0]
+
+              if row["finalized"]:
+                  return False
+
+              current_ids = [
+                  str(row[field]).strip()
+                  for field in (
+                      "tournament_1_id",
+                      "tournament_2_id"
+                  )
+                  if row.get(field) is not None
+              ]
+
+              return current_ids == tids
 
           failures = 0
+          total_cards = 0
+          total_skins = 0
+          weeks_updated = 0
 
           for week in weeks:
               number = week["week_number"]
+
+              if week["finalized"]:
+                  print(
+                      f"Week {number}: "
+                      "Finalized. Protected.",
+                      flush=True
+                  )
+                  continue
 
               tids = []
 
@@ -318,11 +555,17 @@ jobs:
                       if tid and tid not in tids:
                           tids.append(tid)
 
-              if not tids:
+              if len(tids) != 2:
+                  print(
+                      f"Week {number}: "
+                      "Waiting for both tournaments",
+                      flush=True
+                  )
                   continue
 
               print(
-                  f"\n=== WEEK {number} ===",
+                  f"\n=== {session['session_name']} "
+                  f"WEEK {number} ===",
                   flush=True
               )
 
@@ -343,8 +586,30 @@ jobs:
                               tid, pid
                           )
 
+                  previous_cards = [
+                      card for card in existing_cards
+                      if card["week_number"] == number
+                  ]
+
+                  missing_players = {
+                      card["username"]
+                      for card in previous_cards
+                  } - set(discovered)
+
+                  if missing_players:
+                      raise RuntimeError(
+                          "Previously imported players "
+                          "missing from SGT: "
+                          + ", ".join(
+                              sorted(missing_players)
+                          )
+                      )
+
                   if not discovered:
-                      print("No finished players")
+                      print(
+                          "No finished players",
+                          flush=True
+                      )
                       continue
 
                   scorecards = []
@@ -357,6 +622,7 @@ jobs:
                       )
 
                       scorecards.append({
+                          "session_id": session_id,
                           "week_number": number,
                           "username": username,
                           "tournament_id": tid,
@@ -374,9 +640,21 @@ jobs:
                       number, scorecards
                   )
 
+                  if len(results) != 18:
+                      raise RuntimeError(
+                          "Expected 18 skins results"
+                      )
+
+                  if not verify_week_open(number, tids):
+                      raise RuntimeError(
+                          "Session or week changed "
+                          "during import"
+                      )
+
                   saved_scores = db(
                       "sgl_skins_player_scores?"
-                      "on_conflict=week_number,username",
+                      "on_conflict=session_id,"
+                      "week_number,username",
                       method="POST",
                       data=scorecards
                   )
@@ -386,9 +664,18 @@ jobs:
                           "Not all scorecards saved"
                       )
 
+                  total_cards += len(saved_scores)
+
+                  if not verify_week_open(number, tids):
+                      raise RuntimeError(
+                          "Session or week changed "
+                          "before saving skins"
+                      )
+
                   saved_skins = db(
                       "sgl_skins?"
-                      "on_conflict=week_number,hole_number",
+                      "on_conflict=session_id,"
+                      "week_number,hole_number",
                       method="POST",
                       data=results
                   )
@@ -398,6 +685,16 @@ jobs:
                           "Not all 18 skins rows saved"
                       )
 
+                  total_skins += len(saved_skins)
+                  weeks_updated += 1
+
+                  awarded = sum(
+                      row["skins_awarded"]
+                      for row in results
+                  )
+
+                  remaining = results[-1]["carryover"]
+
                   print(
                       f"Week {number}: "
                       f"{len(scorecards)} players, "
@@ -405,20 +702,38 @@ jobs:
                       flush=True
                   )
 
+                  print(
+                      f"Skins awarded: {awarded}, "
+                      f"Unclaimed final carryover: "
+                      f"{remaining}",
+                      flush=True
+                  )
+
               except Exception as error:
                   failures += 1
+
                   print(
                       f"ERROR Week {number}: {error}",
                       flush=True
                   )
+
+          print(
+              f"\nSESSION: {session['session_name']}",
+              flush=True
+          )
+
+          print(
+              f"SKINS IMPORT COMPLETE: "
+              f"{weeks_updated} weeks updated, "
+              f"{total_cards} scorecard upserts, "
+              f"{total_skins} skins upserts, "
+              f"{failures} failures",
+              flush=True
+          )
 
           if failures:
               raise SystemExit(
                   f"{failures} week(s) failed"
               )
 
-          print(
-              "\nSKINS IMPORT COMPLETE",
-              flush=True
-          )
           PY
