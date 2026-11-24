@@ -1,0 +1,1750 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#03170e">
+<title>League Administration | Taylorville SGL</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  background: linear-gradient(160deg,#03170e,#103b21,#03170e);
+  color: #f8f6ee;
+  font-family: system-ui,-apple-system,Arial,sans-serif;
+  min-height: 100vh;
+}
+
+main {
+  max-width: 760px;
+  margin: auto;
+  padding: 16px 14px 60px;
+}
+
+header {
+  text-align: center;
+  padding: 30px 12px;
+  border-bottom: 1px solid #bda166;
+  margin-bottom: 20px;
+}
+
+h1 {
+  font: normal 32px Georgia,serif;
+  color: #e8c879;
+  margin: 0 0 8px;
+}
+
+h2 {
+  font: normal 23px Georgia,serif;
+  color: #e8c879;
+  margin: 0 0 16px;
+}
+
+h3 {
+  color: #e8c879;
+  font-size: 16px;
+}
+
+p {
+  line-height: 1.5;
+}
+
+.muted {
+  color: #c7d1c6;
+  font-size: 13px;
+}
+
+.panel {
+  background: linear-gradient(130deg,#11412b,#072319);
+  border: 1px solid #bda166;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+label {
+  display: block;
+  color: #e8c879;
+  font-size: 13px;
+  margin: 12px 0 7px;
+}
+
+input,select,button {
+  font: inherit;
+}
+
+input,select {
+  width: 100%;
+  min-height: 46px;
+  background: #06271a;
+  color: #fff;
+  border: 1px solid #bda166;
+  border-radius: 7px;
+  padding: 10px;
+  font-size: 16px;
+}
+
+input[type="datetime-local"] {
+  color-scheme: dark;
+}
+
+button,.link {
+  display: block;
+  width: 100%;
+  border: 1px solid #bda166;
+  border-radius: 8px;
+  background: #d6ae60;
+  color: #092015;
+  font-weight: 750;
+  padding: 13px 10px;
+  margin-top: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+}
+
+button.secondary,.link.secondary {
+  background: #09291c;
+  color: #e8c879;
+}
+
+button.danger {
+  background: #692c2c;
+  border-color: #c87c70;
+  color: #fff;
+}
+
+button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.stat {
+  border: 1px solid #bda16655;
+  border-radius: 9px;
+  padding: 12px 5px;
+  text-align: center;
+  background: #09291c;
+}
+
+.stat strong {
+  display: block;
+  color: #e8c879;
+  font-size: 25px;
+}
+
+.stat span {
+  font-size: 12px;
+  color: #c7d1c6;
+}
+
+.badge {
+  display: inline-block;
+  padding: 5px 10px;
+  border-radius: 20px;
+  background: #d6ae60;
+  color: #092015;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.menu button {
+  text-align: left;
+  background: #09291c;
+  color: #e8c879;
+  padding: 16px;
+}
+
+.message {
+  position: sticky;
+  top: 8px;
+  z-index: 100;
+  padding: 14px;
+  margin-bottom: 14px;
+  border: 1px solid #bda166;
+  border-radius: 8px;
+  background: #16472c;
+  overflow-wrap: anywhere;
+}
+
+.message.error {
+  background: #692c2c;
+  border-color: #e39a8b;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th {
+  text-align: left;
+  color: #e8c879;
+  background: #06271a;
+}
+
+th,td {
+  padding: 11px 7px;
+  border-bottom: 1px solid #bda16644;
+}
+
+td {
+  overflow-wrap: anywhere;
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.week-card {
+  border: 1px solid #bda16655;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  background: #08291b;
+}
+
+footer {
+  text-align: center;
+  color: #c7d1c6;
+  font-size: 12px;
+  margin-top: 25px;
+}
+
+@media(max-width:400px) {
+  .panel {
+    padding: 12px;
+  }
+
+  h1 {
+    font-size: 27px;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<main>
+
+<header>
+  <h1>Taylorville SGL</h1>
+  <div class="muted">League Administration</div>
+</header>
+
+<div id="message" class="message" role="status" hidden></div>
+
+<section id="login" class="panel">
+
+  <h2>Administrator Login</h2>
+
+  <form id="loginForm">
+
+    <label for="email">Email Address</label>
+    <input id="email" type="email"
+      autocomplete="username" required>
+
+    <label for="password">Password</label>
+    <input id="password" type="password"
+      autocomplete="current-password" required>
+
+    <button type="submit">Sign In</button>
+
+  </form>
+
+  <a class="link secondary" href="index.html">
+    Return to League Website
+  </a>
+
+</section>
+
+<div id="admin" hidden>
+
+  <section class="panel">
+
+    <div id="account" class="muted"></div>
+
+    <label for="sessionSelect">League Session</label>
+
+    <select id="sessionSelect"></select>
+
+    <h2 id="sessionTitle" style="margin-top:16px"></h2>
+
+    <span id="sessionStatus" class="badge"></span>
+
+    <div class="stats">
+
+      <div class="stat">
+        <strong id="playerCount">0</strong>
+        <span>Golfers</span>
+      </div>
+
+      <div class="stat">
+        <strong id="teamCount">0</strong>
+        <span>Teams</span>
+      </div>
+
+      <div class="stat">
+        <strong id="weekCount">0</strong>
+        <span>Weeks</span>
+      </div>
+
+    </div>
+
+    <div id="sessionProgress" class="muted"></div>
+
+    <button class="secondary" onclick="refreshData()">
+      Refresh League Data
+    </button>
+
+  </section>
+
+  <section id="menu" class="panel menu">
+
+    <h2>League Management</h2>
+
+    <button onclick="openPage('create')">
+      Create New Session
+    </button>
+
+    <button onclick="openPage('copy')">
+      Copy Previous Session Roster
+    </button>
+
+    <button onclick="openPage('players')">
+      Manage Golfers
+    </button>
+
+    <button onclick="openPage('teams')">
+      Manage Teams
+    </button>
+
+    <button onclick="openPage('weeks')">
+      Manage Tournament Weeks
+    </button>
+
+    <button onclick="openPage('finalize')">
+      Finalize Weekly Results
+    </button>
+
+    <button onclick="openPage('penalties')">
+      Missed-Round Penalties
+    </button>
+
+    <button onclick="openPage('session')">
+      Session Management
+    </button>
+
+  </section>
+
+  <section id="editor" class="panel" hidden>
+
+    <button class="secondary" onclick="closePage()"
+      style="margin:0 0 18px">
+      ‹ Back to Administration
+    </button>
+
+    <div id="editorContent"></div>
+
+  </section>
+
+  <a class="link secondary" href="index.html">
+    Open League Website
+  </a>
+
+  <a class="link secondary" href="app.html">
+    Open Mobile App
+  </a>
+
+  <button class="danger" onclick="signOut()">
+    Sign Out
+  </button>
+
+</div>
+
+<footer>Taylorville Simulator Golf League</footer>
+
+</main>
+
+<script>
+
+const db = supabase.createClient(
+  "https://xgjziyopzeeneccfaszb.supabase.co",
+  "sb_publishable_7ttHIcbCVOCv1rJlWpq0AA_59y0Tw7O"
+);
+
+const $ = id => document.getElementById(id);
+
+let data = {
+  sessions: [],
+  weeks: [],
+  teams: [],
+  players: []
+};
+
+let selectedSession = null;
+let currentPage = null;
+let busy = false;
+let authVersion = 0;
+
+function esc(value) {
+  return String(value ?? "")
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;")
+    .replace(/'/g,"&#39;");
+}
+
+function message(text,error=false) {
+  $("message").textContent = text;
+  $("message").className =
+    "message" + (error ? " error" : "");
+  $("message").hidden = !text;
+}
+
+function clearMessage() {
+  message("");
+}
+
+function session() {
+  return data.sessions.find(
+    s => String(s.id) === String(selectedSession)
+  );
+}
+
+function scoped(name) {
+  return data[name].filter(
+    row => String(row.session_id) ===
+      String(selectedSession)
+  );
+}
+
+function editable() {
+  return ["planned","active"].includes(
+    session()?.status
+  );
+}
+
+function setBusy(value) {
+  busy = value;
+
+  document.querySelectorAll("button")
+    .forEach(button => {
+
+      if (value) {
+        button.dataset.previousDisabled =
+          button.disabled ? "1" : "0";
+        button.disabled = true;
+      } else {
+        button.disabled =
+          button.dataset.previousDisabled === "1";
+        delete button.dataset.previousDisabled;
+      }
+
+    });
+
+  $("sessionSelect").disabled = value;
+}
+
+async function rpc(name,args={}) {
+  const result = await db.rpc(name,args);
+
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+
+  return result.data;
+}
+
+async function loadData(preferred=selectedSession) {
+
+  const result = await rpc("sgl_admin_get_data");
+
+  data = {
+    sessions: result.sessions || [],
+    weeks: result.weeks || [],
+    teams: result.teams || [],
+    players: result.players || []
+  };
+
+  const chosen =
+    data.sessions.find(
+      s => String(s.id) === String(preferred)
+    ) ||
+    data.sessions.find(s => s.status === "active") ||
+    data.sessions[0];
+
+  selectedSession = chosen?.id ?? null;
+
+  renderDashboard();
+
+  if (currentPage) {
+    renderPage();
+  }
+}
+
+async function checkLogin() {
+
+  const version = ++authVersion;
+
+  $("admin").hidden = true;
+
+  try {
+
+    const result = await db.auth.getSession();
+
+    if (version !== authVersion) return;
+
+    if (result.error) throw result.error;
+
+    const authSession = result.data.session;
+
+    if (!authSession) {
+      $("login").hidden = false;
+      return;
+    }
+
+    const authorized = await rpc("sgl_is_admin");
+
+    if (version !== authVersion) return;
+
+    if (authorized !== true) {
+
+      await db.auth.signOut();
+
+      $("login").hidden = false;
+
+      message(
+        "This account is not authorized for league administration.",
+        true
+      );
+
+      return;
+    }
+
+    await loadData();
+
+    if (version !== authVersion) return;
+
+    $("account").textContent =
+      "Signed in as " +
+      (authSession.user.email || "Administrator");
+
+    $("login").hidden = true;
+    $("admin").hidden = false;
+
+  } catch(error) {
+
+    $("login").hidden = false;
+    $("admin").hidden = true;
+
+    message(error.message,true);
+
+  }
+}
+
+$("loginForm").addEventListener(
+  "submit",
+  async event => {
+
+    event.preventDefault();
+
+    if (busy) return;
+
+    clearMessage();
+    setBusy(true);
+
+    try {
+
+      const result =
+        await db.auth.signInWithPassword({
+          email: $("email").value.trim(),
+          password: $("password").value
+        });
+
+      if (result.error) throw result.error;
+
+      $("password").value = "";
+
+      await checkLogin();
+
+    } catch(error) {
+
+      message(error.message,true);
+
+    } finally {
+
+      setBusy(false);
+
+    }
+  }
+);
+
+async function signOut() {
+
+  if (busy) return;
+
+  try {
+
+    const result = await db.auth.signOut();
+
+    if (result.error) throw result.error;
+
+    authVersion++;
+
+    selectedSession = null;
+    currentPage = null;
+
+    data = {
+      sessions: [],
+      weeks: [],
+      teams: [],
+      players: []
+    };
+
+    $("editorContent").innerHTML = "";
+    $("editor").hidden = true;
+    $("menu").hidden = false;
+    $("admin").hidden = true;
+    $("login").hidden = false;
+
+    clearMessage();
+
+  } catch(error) {
+
+    message(error.message,true);
+
+  }
+}
+
+function renderDashboard() {
+
+  $("sessionSelect").innerHTML =
+    data.sessions.map(s => `
+      <option value="${esc(s.id)}">
+        ${esc(s.session_name)} (${esc(s.status)})
+      </option>
+    `).join("");
+
+  $("sessionSelect").value =
+    String(selectedSession ?? "");
+
+  const s = session();
+
+  $("sessionTitle").textContent =
+    s?.session_name || "No Sessions";
+
+  $("sessionStatus").textContent =
+    s?.status || "None";
+
+  $("playerCount").textContent =
+    scoped("players").length;
+
+  $("teamCount").textContent =
+    scoped("teams").length;
+
+  $("weekCount").textContent =
+    s?.total_weeks || 0;
+
+  const weeks = scoped("weeks");
+
+  const finalized = weeks.filter(
+    w => w.finalized
+  ).length;
+
+  $("sessionProgress").textContent =
+    finalized + " of " +
+    (s?.total_weeks || 0) +
+    " weeks finalized";
+}
+
+$("sessionSelect").addEventListener(
+  "change",
+  () => {
+
+    if (busy) return;
+
+    selectedSession = $("sessionSelect").value;
+
+    clearMessage();
+    renderDashboard();
+
+    if (currentPage) renderPage();
+
+  }
+);
+
+async function refreshData() {
+
+  if (busy) return;
+
+  clearMessage();
+  setBusy(true);
+
+  try {
+
+    await loadData();
+    message("League data refreshed.");
+
+  } catch(error) {
+
+    message(error.message,true);
+
+  } finally {
+
+    setBusy(false);
+
+  }
+}
+
+async function action(
+  name,
+  args,
+  successText,
+  chooseResult=false
+) {
+
+  if (busy) return;
+
+  clearMessage();
+  setBusy(true);
+
+  let saved = false;
+
+  try {
+
+    const result = await rpc(name,args);
+
+    saved = true;
+
+    await loadData(
+      chooseResult ? result : selectedSession
+    );
+
+    message(successText);
+
+  } catch(error) {
+
+    message(
+      saved
+        ? "Change saved, but refresh failed: " +
+          error.message
+        : error.message,
+      true
+    );
+
+  } finally {
+
+    setBusy(false);
+
+  }
+}
+
+function openPage(page) {
+
+  if (busy) return;
+
+  currentPage = page;
+
+  clearMessage();
+
+  $("menu").hidden = true;
+  $("editor").hidden = false;
+
+  renderPage();
+
+  $("editor").scrollIntoView({
+    behavior: "smooth",
+    block: "start"
+  });
+}
+
+function closePage() {
+
+  if (busy) return;
+
+  currentPage = null;
+
+  $("editor").hidden = true;
+  $("menu").hidden = false;
+
+  clearMessage();
+}
+
+function teamOptions(includeBlank=false) {
+
+  return (
+    includeBlank
+      ? '<option value="">Select team</option>'
+      : ""
+  ) + scoped("teams").map(t => `
+    <option value="${esc(t.id)}">
+      ${esc(t.team_name)}
+    </option>
+  `).join("");
+}
+
+function weekOptions(onlyOpen=false) {
+
+  return scoped("weeks")
+    .filter(w => !onlyOpen || !w.finalized)
+    .map(w => `
+      <option value="${esc(w.week_number)}">
+        Week ${esc(w.week_number)}
+        ${w.finalized ? "(Finalized)" : ""}
+      </option>
+    `).join("");
+}
+
+function playerOptions() {
+
+  return scoped("players").map(p => `
+    <option value="${esc(p.username)}">
+      ${esc(p.username)}
+    </option>
+  `).join("");
+}
+
+function numberOrNull(id) {
+
+  const value = $(id).value.trim();
+
+  return value === "" ? null : Number(value);
+}
+
+function selectedWeek(id) {
+
+  return scoped("weeks").find(
+    w => String(w.week_number) === $(id).value
+  );
+}
+
+function localDateTime(value) {
+
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  const local = new Date(
+    date.getTime() -
+    date.getTimezoneOffset() * 60000
+  );
+
+  return local.toISOString().slice(0,16);
+}
+
+function renderPage() {
+
+  const el = $("editorContent");
+
+  const s = session();
+
+  if (currentPage !== "create" && !s) {
+
+    el.innerHTML = `
+      <p>Create a session first.</p>
+    `;
+
+    return;
+  }
+
+  switch(currentPage) {
+
+    case "create":
+      renderCreate(el);
+      break;
+
+    case "copy":
+      renderCopy(el);
+      break;
+
+    case "players":
+      renderPlayers(el);
+      break;
+
+    case "teams":
+      renderTeams(el);
+      break;
+
+    case "weeks":
+      renderWeeks(el);
+      break;
+
+    case "finalize":
+      renderFinalize(el);
+      break;
+
+    case "penalties":
+      renderPenalties(el);
+      break;
+
+    case "session":
+      renderSession(el);
+      break;
+
+  }
+}
+
+/* CREATE SESSION */
+
+function renderCreate(el) {
+
+  const latest = data.sessions[0];
+
+  el.innerHTML = `
+    <h2>Create New Session</h2>
+
+    <p class="muted">
+      New sessions remain planned until activated.
+      Creating a session does not change the
+      current active league.
+    </p>
+
+    <form id="createForm">
+
+      <label>Session Year</label>
+      <input id="newYear" type="number"
+        min="2026" max="2100"
+        value="${esc(latest?.season_year || 2026)}"
+        required>
+
+      <label>Session Number</label>
+      <input id="newNumber" type="number"
+        min="1" max="99"
+        value="${Number(latest?.session_number || 0)+1}"
+        required>
+
+      <label>Number of Weeks</label>
+      <input id="newWeeks" type="number"
+        min="1" max="52" value="8" required>
+
+      <button type="submit">
+        Create Planned Session
+      </button>
+
+    </form>
+  `;
+
+  $("createForm").onsubmit = event => {
+
+    event.preventDefault();
+
+    const year = Number($("newYear").value);
+    const number = Number($("newNumber").value);
+    const weeks = Number($("newWeeks").value);
+
+    if (!confirm(
+      `Create ${year} Session ${number} with ${weeks} weeks?`
+    )) return;
+
+    action(
+      "sgl_admin_create_session",
+      {
+        p_year: year,
+        p_session_number: number,
+        p_total_weeks: weeks
+      },
+      "Planned session created.",
+      true
+    );
+
+  };
+}
+
+/* COPY ROSTER */
+
+function renderCopy(el) {
+
+  const sources = data.sessions.filter(
+    s => String(s.id) !== String(selectedSession)
+  );
+
+  const allowed =
+    session().status === "planned" &&
+    scoped("players").length === 0 &&
+    scoped("teams").length === 0 &&
+    sources.length > 0;
+
+  el.innerHTML = `
+    <h2>Copy Previous Session Roster</h2>
+
+    <p class="muted">
+      Target: ${esc(session().session_name)}
+    </p>
+
+    <p>
+      Copies golfers, teams and assignments only.
+      No scores or tournament results are copied.
+    </p>
+
+    <label>Copy From</label>
+
+    <select id="copySource">
+      ${sources.map(s => `
+        <option value="${esc(s.id)}">
+          ${esc(s.session_name)}
+        </option>
+      `).join("")}
+    </select>
+
+    <button id="copyButton"
+      ${allowed ? "" : "disabled"}>
+      Copy Roster
+    </button>
+
+    ${allowed ? "" : `
+      <p class="muted">
+        Select an empty planned session and an
+        available source session to copy a roster.
+      </p>
+    `}
+  `;
+
+  $("copyButton").onclick = () => {
+
+    if (!confirm(
+      "Copy the selected roster into this session?"
+    )) return;
+
+    action(
+      "sgl_admin_copy_roster",
+      {
+        p_source_session_id:
+          Number($("copySource").value),
+        p_target_session_id:
+          Number(selectedSession)
+      },
+      "Roster copied successfully."
+    );
+
+  };
+}
+
+/* MANAGE TEAMS */
+
+function renderTeams(el) {
+
+  const teams = scoped("teams");
+
+  el.innerHTML = `
+    <h2>Manage Teams</h2>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Team</th>
+            <th>Golfers</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${teams.map(t => `
+            <tr>
+              <td>${esc(t.team_name)}</td>
+              <td>
+                ${scoped("players").filter(
+                  p => p.team_id === t.id
+                ).length}/4
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+
+    ${editable() ? `
+      <form id="teamForm">
+
+        <label>Select Team</label>
+
+        <select id="editTeam">
+          <option value="">Create New Team</option>
+          ${teamOptions()}
+        </select>
+
+        <label>Team Name</label>
+
+        <input id="teamName" maxlength="80"
+          required>
+
+        <button type="submit">Save Team</button>
+
+      </form>
+
+      <button id="deleteTeam" class="danger">
+        Delete Selected Empty Team
+      </button>
+    ` : `
+      <p class="muted">
+        Completed sessions are read-only.
+      </p>
+    `}
+  `;
+
+  if (!editable()) return;
+
+  $("editTeam").onchange = () => {
+
+    const team = teams.find(
+      t => String(t.id) === $("editTeam").value
+    );
+
+    $("teamName").value = team?.team_name || "";
+
+  };
+
+  $("teamForm").onsubmit = event => {
+
+    event.preventDefault();
+
+    action(
+      "sgl_admin_save_team",
+      {
+        p_session_id: Number(selectedSession),
+        p_team_id: numberOrNull("editTeam"),
+        p_team_name: $("teamName").value.trim()
+      },
+      "Team saved."
+    );
+
+  };
+
+  $("deleteTeam").onclick = () => {
+
+    const id = numberOrNull("editTeam");
+
+    if (id === null) {
+      message("Select an existing team.",true);
+      return;
+    }
+
+    if (!confirm("Delete the selected empty team?"))
+      return;
+
+    action(
+      "sgl_admin_remove_team",
+      {
+        p_session_id: Number(selectedSession),
+        p_team_id: id
+      },
+      "Team removal processed."
+    );
+
+  };
+}
+
+/* MANAGE GOLFERS */
+
+function renderPlayers(el) {
+
+  const players = scoped("players");
+  const teams = scoped("teams");
+
+  el.innerHTML = `
+    <h2>Manage Golfers</h2>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>SGT Username</th>
+            <th>Team</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${players.map(p => `
+            <tr>
+              <td>${esc(p.username)}</td>
+              <td>${esc(
+                teams.find(t => t.id === p.team_id)
+                  ?.team_name || ""
+              )}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+
+    ${editable() ? `
+      <p class="muted">
+        Roster changes are locked after results
+        have been recorded.
+      </p>
+
+      <form id="playerForm">
+
+        <label>SGT Username</label>
+
+        <input id="playerName"
+          maxlength="80" required>
+
+        <label>Assigned Team</label>
+
+        <select id="playerTeam" required>
+          ${teamOptions(true)}
+        </select>
+
+        <button type="submit">
+          Add Golfer / Update Assignment
+        </button>
+
+      </form>
+
+      <label>Select Existing Golfer</label>
+
+      <select id="existingPlayer">
+        <option value="">Select golfer</option>
+        ${playerOptions()}
+      </select>
+
+      <button id="removePlayer" class="danger">
+        Remove Selected Golfer
+      </button>
+    ` : `
+      <p class="muted">
+        Completed sessions are read-only.
+      </p>
+    `}
+  `;
+
+  if (!editable()) return;
+
+  $("existingPlayer").onchange = () => {
+
+    const player = players.find(
+      p => p.username === $("existingPlayer").value
+    );
+
+    if (player) {
+      $("playerName").value = player.username;
+      $("playerTeam").value = player.team_id;
+    }
+
+  };
+
+  $("playerForm").onsubmit = event => {
+
+    event.preventDefault();
+
+    action(
+      "sgl_admin_save_player",
+      {
+        p_session_id: Number(selectedSession),
+        p_username: $("playerName").value.trim(),
+        p_team_id: Number($("playerTeam").value)
+      },
+      "Golfer saved."
+    );
+
+  };
+
+  $("removePlayer").onclick = () => {
+
+    const username = $("existingPlayer").value;
+
+    if (!username) {
+      message("Select a golfer first.",true);
+      return;
+    }
+
+    if (!confirm(`Remove ${username} from this session?`))
+      return;
+
+    action(
+      "sgl_admin_remove_player",
+      {
+        p_session_id: Number(selectedSession),
+        p_username: username
+      },
+      "Golfer removal processed."
+    );
+
+  };
+}
+
+/* MANAGE WEEKS */
+
+function renderWeeks(el) {
+
+  el.innerHTML = `
+    <h2>Manage Tournament Weeks</h2>
+
+    <label>Select Week</label>
+
+    <select id="editWeek">
+      ${weekOptions()}
+    </select>
+
+    <div id="weekEditor"></div>
+  `;
+
+  const firstOpen = scoped("weeks").find(
+    w => !w.finalized
+  );
+
+  if (firstOpen) {
+    $("editWeek").value = firstOpen.week_number;
+  }
+
+  $("editWeek").onchange = renderWeekEditor;
+
+  renderWeekEditor();
+}
+
+function renderWeekEditor() {
+
+  const w = selectedWeek("editWeek");
+
+  if (!w) {
+    $("weekEditor").textContent = "No weeks available.";
+    return;
+  }
+
+  const allowed = editable() && !w.finalized;
+
+  $("weekEditor").innerHTML = `
+    <p>
+      <span class="badge">
+        ${w.finalized ? "Finalized" : "Open"}
+      </span>
+    </p>
+
+    <form id="weekForm">
+
+      <fieldset
+        style="border:0;padding:0;margin:0;min-width:0"
+        ${allowed ? "" : "disabled"}>
+
+        <label>Course Name</label>
+
+        <input id="courseName"
+          value="${esc(w.course_name)}">
+
+        <label>Course Par</label>
+
+        <input id="coursePar" type="number"
+          min="54" max="90"
+          value="${esc(w.course_par)}">
+
+        <label>Club 1 Tournament ID</label>
+
+        <input id="tournament1" type="number"
+          min="1"
+          value="${esc(w.tournament_1_id)}">
+
+        <label>Club 2 Tournament ID</label>
+
+        <input id="tournament2" type="number"
+          min="1"
+          value="${esc(w.tournament_2_id)}">
+
+        <label>Closing Date and Time (Local)</label>
+
+        <input id="closingTime"
+          type="datetime-local"
+          value="${esc(localDateTime(w.closes_at))}">
+
+        <button type="submit">
+          Save Week Configuration
+        </button>
+
+      </fieldset>
+
+    </form>
+
+    <p class="muted">
+      Tournament IDs can be left blank for
+      automatic SGT discovery. Finalized weeks
+      cannot be changed.
+    </p>
+  `;
+
+  $("weekForm").onsubmit = event => {
+
+    event.preventDefault();
+
+    if (!allowed) return;
+
+    const closing = $("closingTime").value;
+
+    action(
+      "sgl_admin_save_week",
+      {
+        p_session_id: Number(selectedSession),
+        p_week_number: Number(w.week_number),
+        p_course_name: $("courseName").value.trim(),
+        p_course_par: numberOrNull("coursePar"),
+        p_tournament_1_id: numberOrNull("tournament1"),
+        p_tournament_2_id: numberOrNull("tournament2"),
+        p_closes_at: closing
+          ? new Date(closing).toISOString()
+          : null
+      },
+      "Week configuration saved."
+    );
+
+  };
+}
+
+/* FINALIZE WEEKS */
+
+function renderFinalize(el) {
+
+  const weeks = scoped("weeks");
+
+  const allowed =
+    session().status === "active" &&
+    weeks.some(w => !w.finalized);
+
+  el.innerHTML = `
+    <h2>Finalize Weekly Results</h2>
+
+    ${weeks.map(w => `
+      <div class="week-card">
+        <strong>Week ${esc(w.week_number)}</strong>
+        <p class="muted">
+          ${esc(w.course_name || "Course not assigned")}
+        </p>
+        <span class="badge">
+          ${w.finalized ? "Finalized" : "Open"}
+        </span>
+      </div>
+    `).join("")}
+
+    <label>Select Week to Finalize</label>
+
+    <select id="finalizeWeek">
+      ${weekOptions(true)}
+    </select>
+
+    <p class="muted">
+      Verify all tournament imports, including
+      Par 3 results, before finalizing.
+      Finalization permanently locks the week
+      against automatic imports.
+    </p>
+
+    <label style="display:flex;gap:10px;align-items:center">
+      <input id="importsConfirmed" type="checkbox"
+        style="width:20px;min-height:20px">
+      I have verified the tournament imports.
+    </label>
+
+    <button id="finalizeButton" class="danger"
+      ${allowed ? "" : "disabled"}>
+      Finalize Selected Week
+    </button>
+  `;
+
+  $("finalizeButton").onclick = () => {
+
+    if (!$("importsConfirmed").checked) {
+
+      message(
+        "Verify all tournament imports first.",
+        true
+      );
+
+      return;
+    }
+
+    const week = Number($("finalizeWeek").value);
+
+    if (!week) return;
+
+    if (!confirm(
+      `Permanently finalize Week ${week}?`
+    )) return;
+
+    action(
+      "sgl_admin_finalize_week",
+      {
+        p_session_id: Number(selectedSession),
+        p_week_number: week
+      },
+      `Week ${week} finalized.`
+    );
+
+  };
+}
+
+/* MISSED-ROUND PENALTIES */
+
+function renderPenalties(el) {
+
+  const allowed =
+    session().status === "active" &&
+    scoped("weeks").some(w => !w.finalized) &&
+    scoped("players").length > 0;
+
+  el.innerHTML = `
+    <h2>Missed-Round Penalties</h2>
+
+    <p class="muted">
+      Apply or remove the existing +10 net
+      missed-round penalty. Completed rounds
+      cannot be replaced with penalties.
+    </p>
+
+    <label>Select Week</label>
+
+    <select id="penaltyWeek">
+      ${weekOptions(true)}
+    </select>
+
+    <label>Select Golfer</label>
+
+    <select id="penaltyPlayer">
+      ${playerOptions()}
+    </select>
+
+    <button id="applyPenalty" class="danger"
+      ${allowed ? "" : "disabled"}>
+      Apply +10 Penalty
+    </button>
+
+    <button id="removePenalty" class="secondary"
+      ${allowed ? "" : "disabled"}>
+      Remove Penalty
+    </button>
+  `;
+
+  function updatePenalty(apply) {
+
+    const username = $("penaltyPlayer").value;
+    const week = Number($("penaltyWeek").value);
+
+    if (!username || !week) return;
+
+    if (!confirm(
+      `${apply ? "Apply +10 penalty to" : "Remove penalty for"} ` +
+      `${username}, Week ${week}?`
+    )) return;
+
+    action(
+      "sgl_admin_set_penalty",
+      {
+        p_session_id: Number(selectedSession),
+        p_week_number: week,
+        p_username: username,
+        p_apply: apply
+      },
+      "Penalty request processed."
+    );
+
+  }
+
+  $("applyPenalty").onclick =
+    () => updatePenalty(true);
+
+  $("removePenalty").onclick =
+    () => updatePenalty(false);
+}
+
+/* SESSION MANAGEMENT */
+
+function renderSession(el) {
+
+  const s = session();
+
+  const weeks = scoped("weeks");
+
+  const finalized = weeks.filter(
+    w => w.finalized
+  ).length;
+
+  el.innerHTML = `
+    <h2>Session Management</h2>
+
+    <h3>${esc(s.session_name)}</h3>
+
+    <span class="badge">${esc(s.status)}</span>
+
+    <p class="muted">
+      ${finalized} of ${esc(s.total_weeks)}
+      weeks finalized.
+    </p>
+
+    ${editable() && s.total_weeks < 52 ? `
+      <form id="extendForm">
+
+        <label>New Total Number of Weeks</label>
+
+        <input id="extendWeeks" type="number"
+          min="${Number(s.total_weeks)+1}"
+          max="52"
+          value="${Number(s.total_weeks)+1}"
+          required>
+
+        <button type="submit">
+          Extend Session
+        </button>
+
+      </form>
+    ` : ""}
+
+    ${s.status === "planned" ? `
+      <h3>Activate Session</h3>
+
+      <p class="muted">
+        The current active session must be
+        completed before activating this session.
+        Every team must have four golfers.
+      </p>
+
+      <button id="activateButton">
+        Activate This Session
+      </button>
+    ` : ""}
+
+    ${s.status === "active" ? `
+      <h3>Complete Session</h3>
+
+      <p class="muted">
+        All weeks must be finalized before
+        completing this session.
+      </p>
+
+      <button id="completeButton" class="danger"
+        ${finalized === Number(s.total_weeks)
+          ? "" : "disabled"}>
+        Complete This Session
+      </button>
+    ` : ""}
+
+    ${s.status === "completed" ? `
+      <p>
+        This session is completed and its
+        historical results are read-only.
+      </p>
+    ` : ""}
+  `;
+
+  if ($("extendForm")) {
+
+    $("extendForm").onsubmit = event => {
+
+      event.preventDefault();
+
+      const total = Number($("extendWeeks").value);
+
+      if (!confirm(
+        `Extend this session to ${total} weeks?`
+      )) return;
+
+      action(
+        "sgl_admin_extend_session",
+        {
+          p_session_id: Number(selectedSession),
+          p_total_weeks: total
+        },
+        "Session extended."
+      );
+
+    };
+  }
+
+  if ($("activateButton")) {
+
+    $("activateButton").onclick = () => {
+
+      if (!confirm(
+        `Activate ${s.session_name}? ` +
+        "Automatic tournament imports will use this session."
+      )) return;
+
+      action(
+        "sgl_admin_activate_session",
+        {
+          p_session_id: Number(selectedSession)
+        },
+        "Session activated."
+      );
+
+    };
+  }
+
+  if ($("completeButton")) {
+
+    $("completeButton").onclick = () => {
+
+      if (!confirm(
+        `Permanently complete ${s.session_name}?`
+      )) return;
+
+      action(
+        "sgl_admin_complete_session",
+        {
+          p_session_id: Number(selectedSession)
+        },
+        "Session completed."
+      );
+
+    };
+  }
+}
+
+/* INITIALIZE */
+
+db.auth.onAuthStateChange(event => {
+
+  if (event === "SIGNED_OUT") {
+
+    authVersion++;
+
+    $("admin").hidden = true;
+    $("login").hidden = false;
+    $("editorContent").innerHTML = "";
+
+    data = {
+      sessions: [],
+      weeks: [],
+      teams: [],
+      players: []
+    };
+
+    selectedSession = null;
+    currentPage = null;
+
+    $("editor").hidden = true;
+    $("menu").hidden = false;
+
+  }
+
+});
+
+checkLogin();
+
+</script>
+
+</body>
+</html>
