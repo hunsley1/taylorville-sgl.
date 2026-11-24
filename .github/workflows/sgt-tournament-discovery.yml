@@ -1,3 +1,4 @@
+
 name: SGT Automatic Tournament Discovery
 
 on:
@@ -184,20 +185,31 @@ jobs:
               year == 2026 and session_number == 1
           )
 
+          # Accept optional course names after the week number.
+          # Examples:
+          # TGSL Week5 Red Tail Run
+          # TGSL 2026 S2 Week1 Red Tail Run
+
           session_pattern = re.compile(
               rf"^TGSL[\s_-]+{year}"
               rf"[\s_-]+S{session_number}"
-              rf"[\s_-]+Week[\s_-]*(\d+)$",
+              rf"[\s_-]+Week[\s_-]*(\d+)"
+              rf"(?:[\s_-]+.+)?$",
               re.IGNORECASE
           )
 
           legacy_pattern = re.compile(
-              r"^TGSL[\s_-]*Week[\s_-]*(\d+)$",
+              r"^TGSL[\s_-]*Week[\s_-]*(\d+)"
+              r"(?:[\s_-]+.+)?$",
               re.IGNORECASE
           )
 
           def discover(tour_name, tour_id):
+
               url = f"{SGT}/sgt-api/tour/{tour_id}/events"
+
+              print("")
+              print(f"Checking {tour_name} (Tour {tour_id})")
 
               html = request(
                   url,
@@ -210,9 +222,25 @@ jobs:
               parser = EventParser()
               parser.feed(html)
 
+              print(
+                  f"{tour_name}: "
+                  f"{len(parser.events)} tournament entries found."
+              )
+
+              if not parser.events:
+                  print(
+                      f"WARNING: No tournament entries "
+                      f"parsed for {tour_name}."
+                  )
+
               found = {}
 
               for tournament_id, name in parser.events:
+
+                  print(
+                      f"{tour_name}: SGT event "
+                      f"{tournament_id} - {name}"
+                  )
 
                   match = session_pattern.fullmatch(name)
 
@@ -220,11 +248,40 @@ jobs:
                       match = legacy_pattern.fullmatch(name)
 
                   if not match:
+                      print(
+                          "  Skipped: Does not match "
+                          "active session naming."
+                      )
                       continue
 
                   week = int(match.group(1))
 
                   if week < 1 or week > total_weeks:
+                      print(
+                          f"  Skipped: Week {week} "
+                          "outside session range."
+                      )
+                      continue
+
+                  if legacy_session and week < 5:
+                      print(
+                          f"  Skipped: Historical Week {week}."
+                      )
+                      continue
+
+                  row = week_map.get(week)
+
+                  if not row:
+                      print(
+                          f"  Skipped: Week {week} "
+                          "not configured."
+                      )
+                      continue
+
+                  if row["finalized"]:
+                      print(
+                          f"  Skipped: Week {week} finalized."
+                      )
                       continue
 
                   if (
@@ -239,9 +296,14 @@ jobs:
                   found[week] = tournament_id
 
                   print(
-                      f"{tour_name}: Week {week} "
+                      f"MATCH: {tour_name}: Week {week} "
                       f"-> Tournament {tournament_id}"
                   )
+
+              print(
+                  f"{tour_name}: "
+                  f"{len(found)} matching open weeks."
+              )
 
               return found
 
@@ -252,6 +314,22 @@ jobs:
 
           first = discovered["Hunsley1"]
           second = discovered["Hunsley2"]
+
+          print("")
+          print(f"Hunsley1 matches: {first}")
+          print(f"Hunsley2 matches: {second}")
+
+          for week in sorted(set(first) - set(second)):
+              print(
+                  f"Week {week}: Waiting for "
+                  "Hunsley2 tournament."
+              )
+
+          for week in sorted(set(second) - set(first)):
+              print(
+                  f"Week {week}: Waiting for "
+                  "Hunsley1 tournament."
+              )
 
           # Preserve the existing tournament column order.
           # Read the original Session 1 Week 4 mapping.
@@ -387,6 +465,7 @@ jobs:
                   f"{tid1} and {tid2}"
               )
 
+          print("")
           print(
               f"Discovery complete. "
               f"{updated} weeks updated."
