@@ -3,17 +3,14 @@
 
 /*
   Taylorville SGL App Leaderboards
+  Multi-session edition
 
-  Uses existing standings.js for league scores.
-  Uses the same Par 3 calculations as index.html.
-
-  Does not modify skins.js or the original website.
+  Shared session management through standings.js.
+  Session-specific standings, teams, archives,
+  Par 3 and Gross Skins.
 */
 
 (() => {
-  const API = "https://xgjziyopzeeneccfaszb.supabase.co";
-  const KEY = "sb_publishable_7ttHIcbCVOCv1rJlWpq0AA_59y0Tw7O";
-
   const $ = id => document.getElementById(id);
 
   const esc = value => String(value ?? "").replace(
@@ -33,21 +30,33 @@
 
   let db = null;
   let currentWeek = null;
+
   let currentMode = "gross";
   let seasonMode = "gross";
   let archiveMode = "gross";
   let archiveCategory = "individual";
   let archiveWeek = null;
 
+  let sessionSwitching = false;
+  let sessionError = "";
+  let leagueError = "";
+
   let par3Shots = [];
   let par3Weeks = [];
   let par3Mode = "weekly";
   let par3Week = null;
   let par3ManualWeek = false;
-
-  let leagueError = "";
   let par3Error = "";
   let par3Loading = false;
+  let par3Loaded = false;
+  let par3SessionId = null;
+  let par3RequestVersion = 0;
+
+  let starting = false;
+
+  // ==========================================
+  // SHARED DISPLAY HELPERS
+  // ==========================================
 
   function panel(title, content) {
     return `
@@ -58,7 +67,11 @@
     `;
   }
 
-  function table(headers, rows, columns = headers.length) {
+  function table(
+    headers,
+    rows,
+    columns = headers.length
+  ) {
     return `
       <div style="overflow-x:auto">
         <table class="app-data-table">
@@ -70,7 +83,8 @@
           <tbody>
             ${rows || `
               <tr>
-                <td colspan="${columns}" class="app-empty">
+                <td colspan="${columns}"
+                  class="app-empty">
                   No results available.
                 </td>
               </tr>
@@ -97,15 +111,24 @@
     `;
   }
 
-  function rankedRows(items, field, renderer) {
+  function rankedRows(
+    items,
+    field,
+    renderer
+  ) {
     let last = null;
     let rank = 0;
 
     return items.map((item, index) => {
-      if (last === null || item[field] !== last) {
+      if (
+        last === null ||
+        item[field] !== last
+      ) {
         rank = index + 1;
       }
+
       last = item[field];
+
       return renderer(item, rank);
     }).join("");
   }
@@ -113,42 +136,266 @@
   function scoreSort(a, b, field) {
     return a[field] - b[field] ||
       String(a.username || a.team)
-        .localeCompare(String(b.username || b.team));
+        .localeCompare(
+          String(b.username || b.team)
+        );
   }
 
   function handicap(value) {
     const n = Number(value);
-    return value == null || value === "" ||
-      !Number.isFinite(n) ? "—" : n.toFixed(1);
+
+    return value == null ||
+      value === "" ||
+      !Number.isFinite(n)
+        ? "—"
+        : n.toFixed(1);
   }
 
   function currentWeekFrom(weeks) {
+    const numbers = weeks
+      .map(w => Number(w.week_number))
+      .filter(n =>
+        Number.isInteger(n) && n > 0
+      )
+      .sort((a, b) => a - b);
+
     const unfinished = weeks
       .filter(w => !w.finalized)
       .map(w => Number(w.week_number))
-      .filter(Number.isFinite)
+      .filter(n =>
+        Number.isInteger(n) && n > 0
+      )
       .sort((a, b) => a - b);
 
     return unfinished[0] ??
-      Math.max(
-        0,
-        ...weeks.map(w => Number(w.week_number) || 0)
-      ) + 1;
+      numbers.at(-1) ??
+      1;
   }
+
+  function currentWeekTitle() {
+    const week = db?.weeks.find(
+      w => Number(w.week_number) ===
+        Number(currentWeek)
+    );
+
+    return (
+      db?.session?.status === "completed" ||
+      week?.finalized
+        ? "Finalized Week"
+        : "Current Week"
+    ) + ` · Week ${currentWeek}`;
+  }
+
+  // ==========================================
+  // SESSION SELECTORS
+  // ==========================================
+
+  function renderSessionSelectors() {
+    const containers =
+      document.querySelectorAll(
+        ".sgl-app-session"
+      );
+
+    const sessions =
+      typeof window.sglGetSessions === "function"
+        ? window.sglGetSessions()
+        : [];
+
+    const session = db?.session;
+
+    const selectedId = session?.id;
+
+    const completed =
+      session?.status === "completed";
+
+    const finishedWeeks =
+      db?.weeks.filter(
+        w => w.finalized
+      ).length ?? 0;
+
+    const totalWeeks =
+      Number(session?.total_weeks) ||
+      db?.weeks.length ||
+      0;
+
+    const allFinished =
+      db?.weeks.length > 0 &&
+      db.weeks.every(w => w.finalized);
+
+    const status = sessionSwitching
+      ? "Loading selected session…"
+      : sessionError
+        ? sessionError
+        : !session
+          ? leagueError ||
+            "Loading league sessions…"
+          : completed || allFinished
+            ? `${completed ? "Completed session" : "Active session"} · ${finishedWeeks} of ${totalWeeks} weeks finalized`
+            : `Active session · Week ${currentWeek} of ${totalWeeks}`;
+
+    const options = sessions.map(s => `
+      <option value="${esc(s.id)}"
+        ${
+          String(s.id) === String(selectedId)
+            ? "selected"
+            : ""
+        }>
+        ${esc(
+          s.session_name ||
+          `${s.season_year} Session ${s.session_number}`
+        )}
+        ${s.status === "active" ? " · Active" : ""}
+      </option>
+    `).join("");
+
+    for (const container of containers) {
+      container.innerHTML = `
+        <div class="sgl-session-label">
+          LEAGUE SESSION
+        </div>
+
+        <select
+          class="app-select sgl-session-select"
+          data-sgl-session-select
+          aria-label="Select league session"
+          ${
+            sessionSwitching ||
+            !session ||
+            !sessions.length
+              ? "disabled"
+              : ""
+          }>
+          ${options ||
+            '<option value="">Loading sessions…</option>'}
+        </select>
+
+        <div class="sgl-session-status"
+          role="status">
+          ${esc(status)}
+        </div>
+
+        ${session && !sessionSwitching ? `
+          <div class="sgl-session-counts">
+            ${db.players.length} golfers
+            · ${db.teams.length} teams
+          </div>
+        ` : ""}
+      `;
+    }
+  }
+
+  function setSessionBusy(busy) {
+    const ids = [
+      "sglAppStandings",
+      "sglAppTeams",
+      "sglAppArchives",
+      "sglAppPar3"
+    ];
+
+    for (const id of ids) {
+      const root = $(id);
+
+      if (!root) continue;
+
+      root.hidden = busy;
+
+      root.setAttribute(
+        "aria-busy",
+        String(busy)
+      );
+    }
+
+    const skinsContent =
+      $("skins")?.querySelector(
+        ".skins-content"
+      );
+
+    if (skinsContent) {
+      skinsContent.hidden = busy;
+
+      skinsContent.setAttribute(
+        "aria-busy",
+        String(busy)
+      );
+    }
+  }
+
+  async function selectSession(sessionId) {
+    if (
+      sessionSwitching ||
+      !sessionId ||
+      typeof window.sglSelectSession !==
+        "function"
+    ) return;
+
+    if (
+      String(sessionId) ===
+      String(db?.session_id)
+    ) return;
+
+    sessionSwitching = true;
+    sessionError = "";
+
+    setSessionBusy(true);
+    renderSessionSelectors();
+
+    try {
+      await window.sglSelectSession(
+        sessionId
+      );
+
+      if (window.SGL_DB) {
+        acceptLeagueData(
+          window.SGL_DB
+        );
+      }
+
+    } catch (error) {
+      console.error(
+        "App session selection error:",
+        error
+      );
+
+      sessionError =
+        "Could not change sessions: " +
+        error.message;
+
+      if (window.SGL_DB) {
+        acceptLeagueData(
+          window.SGL_DB
+        );
+      }
+
+    } finally {
+      sessionSwitching = false;
+
+      setSessionBusy(false);
+      renderAll();
+      loadPar3();
+    }
+  }
+
+  // ==========================================
+  // LEAGUE SCORING
+  // ==========================================
 
   function completedWeeks() {
     return (db?.weeks || [])
       .filter(w => w.finalized)
       .sort((a, b) =>
-        Number(a.week_number) - Number(b.week_number)
+        Number(a.week_number) -
+        Number(b.week_number)
       );
   }
 
   function weekScores(number) {
     return (db?.scores || []).filter(s =>
-      Number(s.week_number) === Number(number) &&
+      Number(s.week_number) ===
+        Number(number) &&
+
       String(s.status || "played")
-        .trim().toLowerCase() === "played"
+        .trim()
+        .toLowerCase() === "played"
     );
   }
 
@@ -162,8 +409,12 @@
 
     return new Map(
       db.players.map(p => [
-        String(p.username || "").trim().toLowerCase(),
-        names.get(String(p.team_id)) || "Unassigned"
+        String(p.username || "")
+          .trim()
+          .toLowerCase(),
+
+        names.get(String(p.team_id)) ||
+          "Unassigned"
       ])
     );
   }
@@ -180,15 +431,24 @@
       ])
     );
 
-    const assignments = teamAssignments();
+    const assignments =
+      teamAssignments();
 
-    for (const score of weekScores(weekNumber)) {
-      const key = String(score.username || "")
-        .trim().toLowerCase();
+    for (
+      const score of weekScores(weekNumber)
+    ) {
+      const key =
+        String(score.username || "")
+          .trim()
+          .toLowerCase();
 
-      const team = teams.get(assignments.get(key));
+      const team =
+        teams.get(assignments.get(key));
 
-      if (team && isScore(score.net_strokes)) {
+      if (
+        team &&
+        isScore(score.net_strokes)
+      ) {
         team.total += score.net_strokes;
         team.count++;
       }
@@ -200,31 +460,45 @@
         complete: t.count === 4
       }))
       .sort((a, b) =>
-        Number(b.complete) - Number(a.complete) ||
+        Number(b.complete) -
+        Number(a.complete) ||
+
         (a.complete ? a.total : Infinity) -
         (b.complete ? b.total : Infinity) ||
+
         a.team.localeCompare(b.team)
       );
   }
 
   function seasonPlayers() {
     const players = new Map();
-    const assignments = teamAssignments();
+
+    const assignments =
+      teamAssignments();
 
     for (const week of completedWeeks()) {
-      for (const score of weekScores(week.week_number)) {
+      for (
+        const score of
+        weekScores(week.week_number)
+      ) {
         if (
           !isScore(score.gross_strokes) ||
           !isScore(score.net_strokes)
         ) continue;
 
-        const key = String(score.username || "")
-          .trim().toLowerCase();
+        const key =
+          String(score.username || "")
+            .trim()
+            .toLowerCase();
 
         if (!players.has(key)) {
           players.set(key, {
             username: score.username,
-            team: assignments.get(key) || "Unassigned",
+
+            team:
+              assignments.get(key) ||
+              "Unassigned",
+
             rounds: 0,
             gross_strokes: 0,
             net_strokes: 0
@@ -232,9 +506,14 @@
         }
 
         const p = players.get(key);
+
         p.rounds++;
-        p.gross_strokes += score.gross_strokes;
-        p.net_strokes += score.net_strokes;
+
+        p.gross_strokes +=
+          score.gross_strokes;
+
+        p.net_strokes +=
+          score.net_strokes;
       }
     }
 
@@ -242,7 +521,8 @@
   }
 
   function seasonTeams() {
-    const completed = completedWeeks();
+    const completed =
+      completedWeeks();
 
     const totals = new Map(
       db.teams.map(t => [
@@ -256,100 +536,160 @@
     );
 
     for (const week of completed) {
-      for (const team of teamResults(week.week_number)) {
+      for (
+        const team of
+        teamResults(week.week_number)
+      ) {
         if (!team.complete) continue;
 
-        const target = totals.get(team.team);
+        const target =
+          totals.get(team.team);
+
         target.weeks++;
         target.total += team.total;
       }
     }
 
-    return [...totals.values()].sort((a, b) =>
-      b.weeks - a.weeks ||
-      a.total - b.total ||
-      a.team.localeCompare(b.team)
-    );
+    return [...totals.values()]
+      .sort((a, b) =>
+        b.weeks - a.weeks ||
+        a.total - b.total ||
+        a.team.localeCompare(b.team)
+      );
   }
 
+  // ==========================================
+  // STANDINGS SCREEN
+  // ==========================================
+
   function renderStandings() {
-    const root = $("sglAppStandings");
+    const root =
+      $("sglAppStandings");
+
     if (!root) return;
 
     if (!db) {
       root.innerHTML = panel(
         "League Standings",
-        `<p>${esc(leagueError || "Loading league standings…")}</p>`
+        `<p>${esc(
+          leagueError ||
+          "Loading league standings…"
+        )}</p>`
       );
+
       return;
     }
 
-    const currentField = currentMode + "_strokes";
+    const currentField =
+      currentMode + "_strokes";
 
-    const current = weekScores(currentWeek)
-      .filter(s => isScore(s[currentField]))
-      .sort((a, b) => scoreSort(a, b, currentField));
+    const current =
+      weekScores(currentWeek)
+        .filter(s =>
+          isScore(s[currentField])
+        )
+        .sort((a, b) =>
+          scoreSort(a, b, currentField)
+        );
 
-    const currentRows = rankedRows(
-      current,
-      currentField,
-      (s, rank) => `
-        <tr>
-          <td class="tag">${rank}</td>
-          <td>${esc(s.username)}</td>
-          <td>${handicap(s.handicap)}</td>
-          <td><strong>${s[currentField]}</strong></td>
-        </tr>
-      `
-    );
+    const currentRows =
+      rankedRows(
+        current,
+        currentField,
+        (s, rank) => `
+<tr>
+<td class="tag">${rank}</td>
+<td>${esc(s.username)}</td>
+<td>${handicap(s.handicap)}</td>
+<td><strong>${s[currentField]}</strong></td>
+</tr>`
+      );
 
-    const seasonField = seasonMode + "_strokes";
+    const seasonField =
+      seasonMode + "_strokes";
 
-    const season = seasonPlayers()
-      .sort((a, b) => scoreSort(a, b, seasonField));
+    const season =
+      seasonPlayers()
+        .sort((a, b) =>
+          scoreSort(a, b, seasonField)
+        );
 
-    const seasonRows = rankedRows(
-      season,
-      seasonField,
-      (p, rank) => `
-        <tr>
-          <td class="tag">${rank}</td>
-          <td>${esc(p.username)}</td>
-          <td>${esc(p.team)}</td>
-          <td>${p.rounds}</td>
-          <td><strong>${p[seasonField]}</strong></td>
-          <td>${(p[seasonField] / p.rounds).toFixed(2)}</td>
-        </tr>
-      `
-    );
+    const seasonRows =
+      rankedRows(
+        season,
+        seasonField,
+        (p, rank) => `
+<tr>
+<td class="tag">${rank}</td>
+<td>${esc(p.username)}</td>
+<td>${esc(p.team)}</td>
+<td>${p.rounds}</td>
+<td><strong>${p[seasonField]}</strong></td>
+<td>${(p[seasonField] / p.rounds).toFixed(2)}</td>
+</tr>`
+      );
 
     root.innerHTML =
       panel(
-        `Current Week · Week ${currentWeek}`,
+        currentWeekTitle(),
+
         tabs([
-          {value:"gross",label:"Gross"},
-          {value:"net",label:"Net"}
+          {
+            value:"gross",
+            label:"Gross"
+          },
+          {
+            value:"net",
+            label:"Net"
+          }
         ], currentMode, "current-mode") +
+
         table(
-          ["POS","PLAYER","HCP",currentMode.toUpperCase()],
+          [
+            "POS",
+            "PLAYER",
+            "HCP",
+            currentMode.toUpperCase()
+          ],
           currentRows
         ) +
-        `<p class="muted">Combined scores from the current week.</p>`
+
+        `<p class="muted">
+          Combined scores from the displayed week.
+        </p>`
       ) +
+
       panel(
         "Individual Season Standings",
+
         tabs([
-          {value:"gross",label:"Gross"},
-          {value:"net",label:"Net"}
+          {
+            value:"gross",
+            label:"Gross"
+          },
+          {
+            value:"net",
+            label:"Net"
+          }
         ], seasonMode, "season-mode") +
+
         table(
-          ["POS","PLAYER","TEAM","ROUNDS","TOTAL","AVG"],
+          [
+            "POS",
+            "PLAYER",
+            "TEAM",
+            "ROUNDS",
+            "TOTAL",
+            "AVG"
+          ],
           seasonRows
         ) +
+
         `<p class="muted">
           Cumulative strokes from finalized weeks only.
         </p>`
       ) +
+
       panel(
         "Team Season Standings",
         renderSeasonTeamTable()
@@ -359,206 +699,313 @@
   function renderSeasonTeamTable() {
     if (!db) return "";
 
-    const completed = completedWeeks();
+    const completed =
+      completedWeeks();
 
-    const rows = seasonTeams().map((t, i) => `
-      <tr>
-        <td class="tag">${t.weeks ? i + 1 : "—"}</td>
-        <td>${esc(t.team)}</td>
-        <td>${t.weeks}</td>
-        <td>${t.weeks ? t.total : "—"}</td>
-        <td>${
-          t.weeks === completed.length
-            ? "Complete"
-            : "Incomplete"
-        }</td>
-      </tr>
-    `).join("");
+    const rows =
+      seasonTeams().map((t, i) => `
+<tr>
+<td class="tag">${t.weeks ? i + 1 : "—"}</td>
+<td>${esc(t.team)}</td>
+<td>${t.weeks}</td>
+<td>${t.weeks ? t.total : "—"}</td>
+<td>${
+  completed.length === 0
+    ? "Pending"
+    : t.weeks === completed.length
+      ? "Complete"
+      : "Incomplete"
+}</td>
+</tr>`
+      ).join("");
 
     return table(
-      ["POS","TEAM","WEEKS","NET","STATUS"],
+      [
+        "POS",
+        "TEAM",
+        "WEEKS",
+        "NET",
+        "STATUS"
+      ],
       rows
     );
   }
 
+  // ==========================================
+  // TEAM STANDINGS SCREEN
+  // ==========================================
+
   function renderTeams() {
     const root = $("sglAppTeams");
+
     if (!root) return;
 
     if (!db) {
       root.innerHTML = panel(
         "Team Standings",
-        `<p>${esc(leagueError || "Loading teams…")}</p>`
+        `<p>${esc(
+          leagueError ||
+          "Loading teams…"
+        )}</p>`
       );
+
       return;
     }
 
-    const weekly = teamResults(currentWeek);
+    const weekly =
+      teamResults(currentWeek);
 
-    const weeklyRows = weekly.map((t, i) => `
-      <tr>
-        <td class="tag">${t.complete ? i + 1 : "—"}</td>
-        <td>${esc(t.team)}</td>
-        <td>${t.count}/4</td>
-        <td>${
-          t.count
-            ? (t.total > 0 ? "+" : "") + t.total
-            : "—"
-        }</td>
-        <td>${t.complete ? "Complete" : "Pending"}</td>
-      </tr>
-    `).join("");
+    const weeklyRows =
+      weekly.map((t, i) => `
+<tr>
+<td class="tag">${t.complete ? i + 1 : "—"}</td>
+<td>${esc(t.team)}</td>
+<td>${t.count}/4</td>
+<td>${
+  t.count
+    ? (t.total > 0 ? "+" : "") +
+      t.total
+    : "—"
+}</td>
+<td>${t.complete ? "Complete" : "Pending"}</td>
+</tr>`
+      ).join("");
 
     root.innerHTML =
       panel(
         `Weekly Team Standings · Week ${currentWeek}`,
+
         table(
-          ["POS","TEAM","FINISHED","NET","STATUS"],
+          [
+            "POS",
+            "TEAM",
+            "FINISHED",
+            "NET",
+            "STATUS"
+          ],
           weeklyRows
         ) +
+
         `<p class="muted">
           All four golfers must finish for a complete team score.
         </p>`
       ) +
+
       panel(
         "Season Team Standings",
         renderSeasonTeamTable()
       );
   }
 
+  // ==========================================
+  // ARCHIVES SCREEN
+  // ==========================================
+
   function renderArchives() {
-    const root = $("sglAppArchives");
+    const root =
+      $("sglAppArchives");
+
     if (!root) return;
 
     if (!db) {
       root.innerHTML = panel(
         "Results Archive",
-        `<p>${esc(leagueError || "Loading results…")}</p>`
+        `<p>${esc(
+          leagueError ||
+          "Loading results…"
+        )}</p>`
       );
+
       return;
     }
 
-    const completed = completedWeeks();
+    const completed =
+      completedWeeks();
 
-    if (!completed.some(w =>
-      Number(w.week_number) === Number(archiveWeek)
-    )) {
+    if (
+      !completed.some(w =>
+        Number(w.week_number) ===
+        Number(archiveWeek)
+      )
+    ) {
       archiveWeek =
-        completed.at(-1)?.week_number ?? null;
+        completed.at(-1)?.week_number ??
+        null;
     }
 
-    const weekOptions = completed.map(w => `
-      <option value="${Number(w.week_number)}"
-        ${Number(w.week_number) === Number(archiveWeek)
-          ? "selected" : ""}>
-        Week ${Number(w.week_number)}
-        ${w.course_name ? " · " + esc(w.course_name) : ""}
-      </option>
-    `).join("");
+    const weekOptions =
+      completed.map(w => `
+<option value="${Number(w.week_number)}"
+  ${
+    Number(w.week_number) ===
+    Number(archiveWeek)
+      ? "selected"
+      : ""
+  }>
+Week ${Number(w.week_number)}
+${w.course_name
+  ? " · " + esc(w.course_name)
+  : ""}
+</option>`
+      ).join("");
 
     let archiveTable = "";
 
     if (archiveWeek == null) {
-      archiveTable = `<p class="muted">
-        No finalized weeks yet.
-      </p>`;
-    } else if (archiveCategory === "individual") {
-      const field = archiveMode + "_strokes";
+      archiveTable =
+        `<p class="muted">
+          No finalized weeks yet.
+        </p>`;
 
-      const scores = weekScores(archiveWeek)
-        .filter(s => isScore(s[field]))
-        .sort((a, b) => scoreSort(a, b, field));
+    } else if (
+      archiveCategory === "individual"
+    ) {
+      const field =
+        archiveMode + "_strokes";
+
+      const scores =
+        weekScores(archiveWeek)
+          .filter(s => isScore(s[field]))
+          .sort((a, b) =>
+            scoreSort(a, b, field)
+          );
 
       archiveTable = table(
-        ["POS","PLAYER","HCP","STROKES"],
-        rankedRows(scores, field, (s, rank) => `
-          <tr>
-            <td class="tag">${rank}</td>
-            <td>${esc(s.username)}</td>
-            <td>${handicap(s.handicap)}</td>
-            <td>${s[field]}</td>
-          </tr>
-        `)
+        [
+          "POS",
+          "PLAYER",
+          "HCP",
+          "STROKES"
+        ],
+
+        rankedRows(
+          scores,
+          field,
+          (s, rank) => `
+<tr>
+<td class="tag">${rank}</td>
+<td>${esc(s.username)}</td>
+<td>${handicap(s.handicap)}</td>
+<td>${s[field]}</td>
+</tr>`
+        )
       );
+
     } else {
       archiveTable = table(
-        ["POS","TEAM","PLAYERS","NET"],
-        teamResults(archiveWeek).map((t, i) => `
-          <tr>
-            <td class="tag">${t.complete ? i + 1 : "—"}</td>
-            <td>${esc(t.team)}</td>
-            <td>${t.count}/4</td>
-            <td>${t.complete ? t.total : "Incomplete"}</td>
-          </tr>
-        `).join("")
+        [
+          "POS",
+          "TEAM",
+          "PLAYERS",
+          "NET"
+        ],
+
+        teamResults(archiveWeek)
+          .map((t, i) => `
+<tr>
+<td class="tag">${t.complete ? i + 1 : "—"}</td>
+<td>${esc(t.team)}</td>
+<td>${t.count}/4</td>
+<td>${t.complete ? t.total : "Incomplete"}</td>
+</tr>`
+          ).join("")
       );
     }
 
-    const schedule = [...db.weeks]
-      .sort((a, b) =>
-        Number(a.week_number) - Number(b.week_number)
-      )
-      .map(w => {
-        const n = Number(w.week_number);
-        const status = w.finalized
-          ? "Finalized"
-          : n === Number(currentWeek)
-            ? "Current week"
-            : "Upcoming";
+    const schedule =
+      [...db.weeks]
+        .sort((a, b) =>
+          Number(a.week_number) -
+          Number(b.week_number)
+        )
+        .map(w => {
+          const n =
+            Number(w.week_number);
 
-        return `
-          <div class="row">
-            <div>
-              <strong>Week ${n}</strong>
-              <div class="muted">
-                ${status}
-                ${w.course_name
-                  ? " · " + esc(w.course_name)
-                  : ""}
-                · ${weekScores(n).length} recorded rounds
-              </div>
-            </div>
-            ${w.finalized ? `
-              <button class="app-small-btn"
-                data-sgl-action="open-archive"
-                data-value="${n}">
-                Results
-              </button>
-            ` : ""}
-          </div>
-        `;
-      }).join("");
+          const status =
+            w.finalized
+              ? "Finalized"
+              : n === Number(currentWeek)
+                ? "Current week"
+                : "Upcoming";
+
+          return `
+<div class="row">
+<div>
+<strong>Week ${n}</strong>
+<div class="muted">
+${status}
+${w.course_name
+  ? " · " + esc(w.course_name)
+  : ""}
+· ${weekScores(n).length} recorded rounds
+</div>
+</div>
+
+${w.finalized ? `
+<button class="app-small-btn"
+  data-sgl-action="open-archive"
+  data-value="${n}">
+Results
+</button>` : ""}
+</div>`;
+        }).join("");
+
+    const totalWeeks =
+      Number(db.session?.total_weeks) ||
+      db.weeks.length;
 
     root.innerHTML =
       panel(
         `Weekly Results · ${completed.length} Completed`,
+
         `
-          <select class="app-select"
-            id="sglArchiveWeek"
-            aria-label="Completed week">
-            ${weekOptions}
-          </select>
+<select class="app-select"
+  id="sglArchiveWeek"
+  aria-label="Completed week"
+  ${completed.length ? "" : "disabled"}>
+  ${weekOptions ||
+    '<option value="">No completed weeks</option>'}
+</select>
 
-          ${tabs([
-            {value:"individual",label:"Individuals"},
-            {value:"teams",label:"Teams"}
-          ], archiveCategory, "archive-category")}
+${tabs([
+  {
+    value:"individual",
+    label:"Individuals"
+  },
+  {
+    value:"teams",
+    label:"Teams"
+  }
+], archiveCategory, "archive-category")}
 
-          ${archiveCategory === "individual"
-            ? tabs([
-                {value:"gross",label:"Gross"},
-                {value:"net",label:"Net"}
-              ], archiveMode, "archive-mode")
-            : ""}
+${archiveCategory === "individual"
+  ? tabs([
+      {
+        value:"gross",
+        label:"Gross"
+      },
+      {
+        value:"net",
+        label:"Net"
+      }
+    ], archiveMode, "archive-mode")
+  : ""}
 
-          ${archiveTable}
-        `
+${archiveTable}`
       ) +
+
       panel(
-        "Tournament Schedule",
-        schedule || `<p>No weeks available.</p>`
+        `Tournament Schedule · ${totalWeeks} Weeks`,
+
+        schedule ||
+          `<p>No weeks available.</p>`
       );
   }
+
+  // ==========================================
+  // PAR 3 CHALLENGE
+  // ==========================================
 
   function par3Normalize(name) {
     return String(name || "")
@@ -590,44 +1037,64 @@
     const best = new Map();
 
     for (const shot of shots) {
-      const key = par3Normalize(shot.username);
+      const key =
+        par3Normalize(shot.username);
+
       if (!key) continue;
 
       const previous = best.get(key);
 
-      if (!previous || par3Better(shot, previous)) {
+      if (
+        !previous ||
+        par3Better(shot, previous)
+      ) {
         best.set(key, shot);
       }
     }
 
-    return [...best.values()].sort((a, b) =>
-      a.distance_ft - b.distance_ft ||
-      a.username.localeCompare(b.username)
-    );
+    return [...best.values()]
+      .sort((a, b) =>
+        a.distance_ft - b.distance_ft ||
+        a.username.localeCompare(b.username)
+      );
   }
 
   function renderPar3() {
     const root = $("sglAppPar3");
+
     if (!root) return;
 
-    const weekly = par3Mode === "weekly";
+    const weekly =
+      par3Mode === "weekly";
 
     const numbers = [...new Set(
-      par3Weeks.map(w => Number(w.week_number))
-        .filter(n => Number.isInteger(n) && n > 0)
+      par3Weeks
+        .map(w => Number(w.week_number))
+        .filter(n =>
+          Number.isInteger(n) && n > 0
+        )
     )].sort((a, b) => a - b);
 
     if (!numbers.length) {
-      numbers.push(...[...new Set(
-        par3Shots.map(s => s.week_number)
-      )].sort((a, b) => a - b));
+      numbers.push(
+        ...[...new Set(
+          par3Shots.map(s => s.week_number)
+        )].sort((a, b) => a - b)
+      );
     }
 
-    const activeWeek = par3Weeks
-      .filter(w => w.finalized === false)
-      .map(w => Number(w.week_number))
-      .filter(n => Number.isInteger(n) && n > 0)
-      .sort((a, b) => a - b)[0] ??
+    const unfinishedWeek =
+      par3Weeks
+        .filter(w => !w.finalized)
+        .map(w => Number(w.week_number))
+        .filter(n =>
+          Number.isInteger(n) && n > 0
+        )
+        .sort((a, b) => a - b)[0] ??
+      null;
+
+    const activeWeek =
+      unfinishedWeek ??
       numbers.at(-1) ??
       null;
 
@@ -639,117 +1106,192 @@
       par3ManualWeek = false;
     }
 
-    const relevant = weekly
-      ? par3Shots.filter(s => s.week_number === par3Week)
-      : par3Shots;
+    const relevant =
+      weekly
+        ? par3Shots.filter(s =>
+            s.week_number === par3Week
+          )
+        : par3Shots;
 
-    const ranked = par3BestShots(relevant);
+    const ranked =
+      par3BestShots(relevant);
 
-    const rows = rankedRows(
-      ranked,
-      "distance_ft",
-      (s, rank) => `
-        <tr>
-          <td class="tag">${rank}</td>
-          <td>${esc(s.username)}</td>
-          ${weekly ? "" : `<td>Week ${s.week_number}</td>`}
-          <td>${s.hole_number}</td>
-          <td class="tag">${s.distance_ft.toFixed(2)} ft</td>
-        </tr>
-      `
-    );
+    const rows =
+      rankedRows(
+        ranked,
+        "distance_ft",
+        (s, rank) => `
+<tr>
+<td class="tag">${rank}</td>
+<td>${esc(s.username)}</td>
+${weekly ? "" : `<td>Week ${s.week_number}</td>`}
+<td>${s.hole_number}</td>
+<td class="tag">${s.distance_ft.toFixed(2)} ft</td>
+</tr>`
+      );
+
+    const status = par3Error
+      ? par3Error
+      : !par3Loaded
+        ? leagueError ||
+          "Loading closest-to-pin results…"
+        : `${weekly
+            ? `Week ${par3Week ?? "—"}`
+            : "Season"
+          } · ${ranked.length} golfers with recorded shots`;
 
     root.innerHTML = panel(
       "Closest to the Pin",
+
       `
-        <p class="muted">
-          Each golfer's single closest recorded shot counts.
-          Equal distances share rank.
-        </p>
+<p class="muted">
+Each golfer's single closest recorded shot counts.
+Equal distances share rank.
+</p>
 
-        ${tabs([
-          {value:"weekly",label:"Weekly"},
-          {value:"season",label:"Season"}
-        ], par3Mode, "par3-mode")}
+${tabs([
+  {
+    value:"weekly",
+    label:"Weekly"
+  },
+  {
+    value:"season",
+    label:"Season"
+  }
+], par3Mode, "par3-mode")}
 
-        ${weekly ? `
-          <select id="sglPar3Week" class="app-select">
-            ${numbers.map(n => `
-              <option value="${n}"
-                ${n === par3Week ? "selected" : ""}>
-                Week ${n}${n === activeWeek
-                  ? " · Current" : ""}
-              </option>
-            `).join("")}
-          </select>
-        ` : ""}
+${weekly ? `
+<select id="sglPar3Week"
+  class="app-select"
+  aria-label="Par 3 week"
+  ${numbers.length ? "" : "disabled"}>
 
-        <p class="muted">
-          ${par3Error
-            ? esc(par3Error)
-            : `${weekly ? `Week ${par3Week ?? "—"}` : "Season"}
-               · ${ranked.length} golfers with recorded shots`}
-        </p>
+${numbers.map(n => `
+<option value="${n}"
+  ${n === par3Week ? "selected" : ""}>
+Week ${n}${
+  n === unfinishedWeek
+    ? " · Current"
+    : ""
+}
+</option>`
+).join("") ||
+'<option value="">No weeks available</option>'}
 
-        ${table(
-          weekly
-            ? ["POS","PLAYER","HOLE","DISTANCE"]
-            : ["POS","PLAYER","WEEK","HOLE","DISTANCE"],
-          rows,
-          weekly ? 4 : 5
-        )}
-      `
+</select>` : ""}
+
+<p class="muted">
+${esc(status)}
+</p>
+
+${
+  par3Loaded && !par3Error
+    ? table(
+        weekly
+          ? [
+              "POS",
+              "PLAYER",
+              "HOLE",
+              "DISTANCE"
+            ]
+          : [
+              "POS",
+              "PLAYER",
+              "WEEK",
+              "HOLE",
+              "DISTANCE"
+            ],
+        rows,
+        weekly ? 4 : 5
+      )
+    : ""
+}`
     );
   }
 
-  async function fetchPar3(table, select) {
-    const params = new URLSearchParams({
-      select,
-      limit: "10000"
-    });
+  function resetPar3(sessionId) {
+    ++par3RequestVersion;
 
-    const response = await fetch(
-      `${API}/rest/v1/${table}?${params}`,
-      {
-        headers: {
-          apikey: KEY,
-          Accept: "application/json"
-        },
-        cache: "no-store"
-      }
-    );
+    par3Loading = false;
+    par3Loaded = false;
 
-    if (!response.ok) {
-      throw new Error(
-        `${table}: HTTP ${response.status}`
-      );
+    par3SessionId = sessionId;
+
+    par3Shots = [];
+    par3Weeks = [];
+
+    par3Week = null;
+
+    par3ManualWeek = false;
+    par3Error = "";
+
+    renderPar3();
+  }
+
+  async function loadPar3(force = false) {
+    if (
+      !db ||
+      db.session_id == null ||
+      typeof window.sglFetch !== "function"
+    ) return;
+
+    if (
+      sessionSwitching &&
+      !force
+    ) return;
+
+    const sessionId = db.session_id;
+
+    if (
+      String(par3SessionId) !==
+      String(sessionId)
+    ) {
+      resetPar3(sessionId);
     }
 
-    return response.json();
-  }
+    if (par3Loading && !force) return;
 
-  async function loadPar3() {
-    if (par3Loading) return;
+    const version =
+      ++par3RequestVersion;
+
     par3Loading = true;
 
     try {
-      const [shots, weeks] = await Promise.all([
-        fetchPar3(
+      const shots =
+        await window.sglFetch(
           "sgl_par3_shots",
-          "week_number,tournament_id,username,hole_number,distance_ft"
-        ),
-        fetchPar3(
-          "sgl_weeks",
-          "week_number,finalized"
-        )
-      ]);
+          {
+            sessionId,
+
+            select:
+              "week_number,tournament_id,username,hole_number,distance_ft"
+          }
+        );
+
+      if (
+        version !== par3RequestVersion ||
+        String(db?.session_id) !==
+          String(sessionId)
+      ) return;
 
       par3Shots = shots.map(s => ({
-        week_number: Number(s.week_number),
-        tournament_id: Number(s.tournament_id),
-        username: String(s.username || ""),
-        hole_number: Number(s.hole_number),
-        distance_ft: Number(s.distance_ft)
+        week_number:
+          Number(s.week_number),
+
+        tournament_id:
+          Number(s.tournament_id),
+
+        username:
+          String(s.username || ""),
+
+        hole_number:
+          Number(s.hole_number),
+
+        distance_ft:
+          s.distance_ft == null
+            ? NaN
+            : Number(s.distance_ft)
+
       })).filter(s =>
         Number.isInteger(s.week_number) &&
         Number.isInteger(s.hole_number) &&
@@ -760,51 +1302,200 @@
         s.username
       );
 
-      par3Weeks = weeks;
+      par3Weeks = db.weeks;
+
       par3Error = "";
+      par3Loaded = true;
 
     } catch (error) {
-      console.error("App Par 3 error:", error);
+      if (
+        version !== par3RequestVersion
+      ) return;
+
+      console.error(
+        "App Par 3 error:",
+        error
+      );
+
       par3Error = error.message;
 
     } finally {
-      par3Loading = false;
-      renderPar3();
+      if (
+        version === par3RequestVersion
+      ) {
+        par3Loading = false;
+        renderPar3();
+      }
+    }
+  }
+
+  // ==========================================
+  // SHARED LEAGUE DATA
+  // ==========================================
+
+  function acceptLeagueData(data) {
+    if (
+      !data ||
+      !data.session ||
+      data.session_id == null
+    ) return;
+
+    const changed =
+      String(db?.session_id) !==
+      String(data.session_id);
+
+    db = data;
+
+    currentWeek =
+      Number(data.currentWeek) ||
+      currentWeekFrom(data.weeks);
+
+    leagueError = "";
+
+    if (changed) {
+      archiveWeek = null;
+
+      resetPar3(
+        data.session_id
+      );
+    }
+
+    renderAll();
+
+    if (
+      changed ||
+      !par3Loaded
+    ) {
+      loadPar3(true);
     }
   }
 
   function renderAll() {
+    renderSessionSelectors();
     renderStandings();
     renderTeams();
     renderArchives();
     renderPar3();
   }
 
+  // ==========================================
+  // SCREEN SETUP
+  // ==========================================
+
+  function addSessionSelector(
+    body,
+    beforeElement = null
+  ) {
+    if (
+      body.querySelector(
+        ".sgl-app-session"
+      )
+    ) return;
+
+    const selector =
+      document.createElement("div");
+
+    selector.className =
+      "sgl-app-session";
+
+    if (
+      beforeElement &&
+      beforeElement.parentNode === body
+    ) {
+      body.insertBefore(
+        selector,
+        beforeElement
+      );
+
+    } else {
+      body.prepend(selector);
+    }
+  }
+
   function setupScreens() {
     const mappings = [
-      ["standings", "sglAppStandings"],
-      ["teams", "sglAppTeams"],
-      ["archives", "sglAppArchives"],
-      ["par3", "sglAppPar3"]
+      [
+        "standings",
+        "sglAppStandings"
+      ],
+      [
+        "teams",
+        "sglAppTeams"
+      ],
+      [
+        "archives",
+        "sglAppArchives"
+      ],
+      [
+        "par3",
+        "sglAppPar3"
+      ]
     ];
 
-    for (const [screenId, containerId] of mappings) {
+    for (
+      const [screenId, containerId]
+      of mappings
+    ) {
       const screen = $(screenId);
+
       if (!screen) continue;
 
-      const body = screen.querySelector(".body");
+      const body =
+        screen.querySelector(".body");
+
       if (!body) continue;
 
-      body.innerHTML = `<div id="${containerId}"></div>`;
+      body.innerHTML =
+        `<div id="${containerId}"></div>`;
+
+      addSessionSelector(
+        body,
+        $(containerId)
+      );
     }
 
-    const style = document.createElement("style");
+    // Preserve the existing Gross Skins
+    // markup and all skins.js element IDs.
+
+    const skinsScreen = $("skins");
+
+    if (skinsScreen) {
+      const skinsContent =
+        skinsScreen.querySelector(
+          ".skins-content"
+        );
+
+      if (
+        skinsContent &&
+        skinsContent.parentElement
+      ) {
+        addSessionSelector(
+          skinsContent.parentElement,
+          skinsContent
+        );
+
+      } else {
+        const skinsBody =
+          skinsScreen.querySelector(
+            ".body"
+          );
+
+        if (skinsBody) {
+          addSessionSelector(skinsBody);
+        }
+      }
+    }
+
+    const style =
+      document.createElement("style");
+
     style.textContent = `
       .app-data-table{
         width:100%;
         border-collapse:collapse;
         font-size:12px;
       }
+
       .app-data-table th{
         text-align:left;
         color:#e8c879;
@@ -813,24 +1504,29 @@
         background:#082c1d;
         white-space:nowrap;
       }
+
       .app-data-table td{
         padding:11px 6px;
         border-bottom:1px solid #bda16633;
         overflow-wrap:anywhere;
       }
+
       .app-data-table th:last-child,
       .app-data-table td:last-child{
         text-align:right;
       }
+
       .app-data-table .tag{
         color:#e8c879;
         font-weight:800;
       }
+
       .app-empty{
         text-align:center!important;
         padding:20px!important;
         color:#c9d2c7;
       }
+
       .app-select{
         width:100%;
         padding:12px;
@@ -841,6 +1537,7 @@
         color:#fff;
         font:inherit;
       }
+
       .app-small-btn{
         border:1px solid #bda166;
         border-radius:7px;
@@ -848,172 +1545,357 @@
         color:#f0d28b;
         padding:8px 11px;
       }
+
       .app-data-table tbody tr:nth-child(even){
         background:#ffffff08;
       }
+
+      .sgl-app-session{
+        background:linear-gradient(
+          135deg,
+          #103a26,
+          #08291a
+        );
+        border:1px solid #bda166;
+        border-radius:12px;
+        padding:13px;
+        margin:0 0 14px;
+      }
+
+      .sgl-session-label{
+        color:#e8c879;
+        font-size:10px;
+        font-weight:800;
+        letter-spacing:.14em;
+        margin-bottom:9px;
+      }
+
+      .sgl-session-select{
+        margin:0 0 8px!important;
+        font-weight:750;
+        min-height:44px;
+      }
+
+      .sgl-session-status{
+        font-size:12px;
+        line-height:1.5;
+        color:#d7dfd2;
+      }
+
+      .sgl-session-counts{
+        color:#b9c9b8;
+        font-size:11px;
+        margin-top:3px;
+      }
+
+      #sglAppStandings[hidden],
+      #sglAppTeams[hidden],
+      #sglAppArchives[hidden],
+      #sglAppPar3[hidden],
+      .skins-content[hidden]{
+        display:none!important;
+      }
     `;
+
     document.head.appendChild(style);
   }
 
-  document.addEventListener("click", event => {
-    const button = event.target.closest(
-      "[data-sgl-action]"
-    );
+  // ==========================================
+  // BUTTON HANDLERS
+  // ==========================================
 
-    if (!button) return;
+  document.addEventListener(
+    "click",
+    event => {
+      const button =
+        event.target.closest(
+          "[data-sgl-action]"
+        );
 
-    const action = button.dataset.sglAction;
-    const value = button.dataset.value;
+      if (
+        !button ||
+        sessionSwitching
+      ) return;
 
-    if (action === "current-mode") {
-      currentMode = value;
-      renderStandings();
+      const action =
+        button.dataset.sglAction;
+
+      const value =
+        button.dataset.value;
+
+      if (action === "current-mode") {
+        currentMode = value;
+        renderStandings();
+      }
+
+      if (action === "season-mode") {
+        seasonMode = value;
+        renderStandings();
+      }
+
+      if (action === "archive-mode") {
+        archiveMode = value;
+        renderArchives();
+      }
+
+      if (action === "archive-category") {
+        archiveCategory = value;
+        renderArchives();
+      }
+
+      if (action === "par3-mode") {
+        par3Mode = value;
+        renderPar3();
+      }
+
+      if (action === "open-archive") {
+        archiveWeek = Number(value);
+
+        archiveCategory = "individual";
+
+        renderArchives();
+
+        $("sglAppArchives")
+          ?.scrollIntoView({
+            behavior:"smooth"
+          });
+      }
     }
+  );
 
-    if (action === "season-mode") {
-      seasonMode = value;
-      renderStandings();
+  document.addEventListener(
+    "change",
+    event => {
+      if (
+        event.target.matches(
+          "[data-sgl-session-select]"
+        )
+      ) {
+        selectSession(
+          event.target.value
+        );
+
+        return;
+      }
+
+      if (sessionSwitching) return;
+
+      if (
+        event.target.id ===
+        "sglArchiveWeek"
+      ) {
+        archiveWeek =
+          Number(event.target.value);
+
+        renderArchives();
+      }
+
+      if (
+        event.target.id ===
+        "sglPar3Week"
+      ) {
+        par3Week =
+          Number(event.target.value);
+
+        par3ManualWeek = true;
+
+        renderPar3();
+      }
     }
+  );
 
-    if (action === "archive-mode") {
-      archiveMode = value;
-      renderArchives();
-    }
-
-    if (action === "archive-category") {
-      archiveCategory = value;
-      renderArchives();
-    }
-
-    if (action === "par3-mode") {
-      par3Mode = value;
-      renderPar3();
-    }
-
-    if (action === "open-archive") {
-      archiveWeek = Number(value);
-      archiveCategory = "individual";
-      renderArchives();
-
-      $("sglAppArchives")?.scrollIntoView({
-        behavior: "smooth"
-      });
-    }
-  });
-
-  document.addEventListener("change", event => {
-    if (event.target.id === "sglArchiveWeek") {
-      archiveWeek = Number(event.target.value);
-      renderArchives();
-    }
-
-    if (event.target.id === "sglPar3Week") {
-      par3Week = Number(event.target.value);
-      par3ManualWeek = true;
-      renderPar3();
-    }
-  });
+  // ==========================================
+  // SESSION AND STANDINGS EVENTS
+  // ==========================================
 
   window.addEventListener(
-    "sgl-current-ready",
+    "sgl-session-loading",
     event => {
-      if (db?.players?.length) return;
-
-      const data = event.detail;
-      currentWeek = Number(data.currentWeek);
-
-      db = {
-        players: [],
-        teams: [],
-        weeks: data.weeks,
-        scores: data.scores
-      };
-
-      renderStandings();
+      resetPar3(
+        event.detail.session.id
+      );
     }
   );
 
   window.addEventListener(
     "sgl-standings-loaded",
     event => {
-      db = event.detail;
-      currentWeek = currentWeekFrom(db.weeks);
-      leagueError = "";
-      renderAll();
+      acceptLeagueData(
+        event.detail
+      );
     }
   );
 
   window.addEventListener(
     "sgl-standings-refreshed",
     event => {
-      db = {
-        players: event.detail.players,
-        teams: event.detail.teams,
-        weeks: event.detail.weeks,
-        scores: event.detail.scores
-      };
+      if (sessionSwitching) return;
 
-      currentWeek = Number(event.detail.currentWeek);
-      leagueError = "";
-      renderAll();
+      const data = event.detail;
+
+      if (
+        db &&
+        String(data.session_id) !==
+          String(db.session_id)
+      ) return;
+
+      acceptLeagueData(data);
+
+      loadPar3();
     }
   );
 
+  window.addEventListener(
+    "sgl-session-error",
+    () => {
+      if (db) {
+        resetPar3(db.session_id);
+
+        loadPar3(true);
+      }
+    }
+  );
+
+  // ==========================================
+  // INITIAL DATABASE CONNECTION
+  // ==========================================
+
   async function startStandings() {
+    if (starting) return;
+
+    starting = true;
+
     try {
-      if (typeof window.loadSGLStandings !== "function") {
-        await new Promise((resolve, reject) => {
-          const script = document.createElement("script");
-          script.src = "standings.js?v=3";
-          script.onload = resolve;
-          script.onerror = () => reject(
-            new Error("Could not load standings.js")
-          );
-          document.head.appendChild(script);
-        });
+      if (
+        typeof window.loadSGLStandings !==
+        "function"
+      ) {
+        await new Promise(
+          (resolve, reject) => {
+            const script =
+              document.createElement(
+                "script"
+              );
+
+            script.src =
+              "standings.js?v=20261124-5";
+
+            script.onload = resolve;
+
+            script.onerror = () =>
+              reject(
+                new Error(
+                  "Could not load standings.js"
+                )
+              );
+
+            document.head.appendChild(
+              script
+            );
+          }
+        );
       }
 
-      if (window.SGL_DB) {
-        db = window.SGL_DB;
-        currentWeek = currentWeekFrom(db.weeks);
-        renderAll();
+      if (
+        typeof window.sglSelectSession !==
+        "function"
+      ) {
+        throw new Error(
+          "Session-aware standings.js is required."
+        );
+      }
+
+      if (window.SGL_DB?.session) {
+        acceptLeagueData(
+          window.SGL_DB
+        );
+
       } else {
         await window.loadSGLStandings();
+
+        if (
+          !db &&
+          window.SGL_DB?.session
+        ) {
+          acceptLeagueData(
+            window.SGL_DB
+          );
+        }
+      }
+
+      if (!db) {
+        throw new Error(
+          "No league data was returned."
+        );
       }
 
     } catch (error) {
-      console.error("App standings error:", error);
+      console.error(
+        "App standings error:",
+        error
+      );
+
       leagueError = error.message;
+
       renderAll();
+
+    } finally {
+      starting = false;
     }
   }
 
-  setupScreens();
-  renderAll();
+  // ==========================================
+  // AUTOMATIC REFRESH
+  // ==========================================
 
-  startStandings();
-  loadPar3();
+  let lastRefresh = Date.now();
 
-  setInterval(() => {
-    if (document.visibilityState !== "visible") return;
+  function refreshLeague() {
+    if (
+      document.visibilityState !==
+        "visible" ||
+      sessionSwitching
+    ) return;
 
-    if (typeof window.refreshSGLStandings === "function") {
+    lastRefresh = Date.now();
+
+    if (!db) {
+      startStandings();
+      return;
+    }
+
+    if (
+      typeof window.refreshSGLStandings ===
+      "function"
+    ) {
       window.refreshSGLStandings();
     }
 
     loadPar3();
-  }, 60000);
+  }
+
+  setupScreens();
+
+  renderAll();
+
+  startStandings();
+
+  setInterval(
+    refreshLeague,
+    60000
+  );
 
   document.addEventListener(
     "visibilitychange",
     () => {
-      if (document.visibilityState !== "visible") return;
-
-      if (typeof window.refreshSGLStandings === "function") {
-        window.refreshSGLStandings();
+      if (
+        document.visibilityState ===
+          "visible" &&
+        Date.now() - lastRefresh >
+          60000
+      ) {
+        refreshLeague();
       }
-
-      loadPar3();
     }
   );
 })();
