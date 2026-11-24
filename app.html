@@ -14,21 +14,8 @@
 <meta name="application-name" content="Taylorville SGL">
 <meta name="mobile-web-app-capable" content="yes">
 
-<!--
-  App icon recovery:
-  Use an existing site icon when one can be located.
-  The confirmed home artwork is only a fallback.
--->
-<link
-  id="tgslAppleIcon"
-  rel="apple-touch-icon"
-  href="tgsl_assets/tgsl-home-art.png"
->
-<link
-  id="tgslFavicon"
-  rel="icon"
-  href="tgsl_assets/tgsl-home-art.png"
->
+<link id="tgslAppleIcon" rel="apple-touch-icon" href="tgsl_assets/tgsl-home-art.png">
+<link id="tgslFavicon" rel="icon" href="tgsl_assets/tgsl-home-art.png">
 
 <script>
 (function () {
@@ -53,19 +40,22 @@
 
       if (response.ok) {
         const html = await response.text();
-        const documentCopy = new DOMParser()
+        const doc = new DOMParser()
           .parseFromString(html, "text/html");
 
-        const existing = documentCopy.querySelector(
-          'link[rel~="apple-touch-icon"],link[rel~="icon"]'
-        );
+        const existing =
+          doc.querySelector('link[rel~="apple-touch-icon"]') ||
+          doc.querySelector('link[rel~="icon"]');
 
         if (existing) {
           const href = existing.getAttribute("href");
 
           if (href) {
             candidates.unshift(
-              new URL(href, new URL("index.html", location.href)).href
+              new URL(
+                href,
+                new URL("index.html", location.href)
+              ).href
             );
           }
         }
@@ -83,18 +73,16 @@
 
         if (!response.ok) continue;
 
-        const type = response.headers.get("content-type") || "";
+        const type =
+          response.headers.get("content-type") || "";
 
         if (!type.startsWith("image/")) continue;
 
         document.getElementById("tgslAppleIcon").href = path;
         document.getElementById("tgslFavicon").href = path;
-
-        console.log("TGSL icon found:", path);
         return;
-      } catch (error) {
-        // Try next existing icon filename.
-      }
+
+      } catch (error) {}
     }
   }
 
@@ -103,6 +91,7 @@
 </script>
 
 <style>
+
 * {
   box-sizing: border-box;
 }
@@ -133,7 +122,7 @@ button {
 .app {
   max-width: 620px;
   margin: auto;
-  padding-bottom: calc(92px + env(safe-area-inset-bottom));
+  padding-bottom: calc(140px + env(safe-area-inset-bottom));
 }
 
 .screen {
@@ -253,6 +242,7 @@ button {
   padding: 16px;
   margin-bottom: 14px;
   box-shadow: 0 5px 18px #00000025;
+  min-width: 0;
 }
 
 .panel h2 {
@@ -402,6 +392,7 @@ button {
   border-radius: 11px;
   padding: 15px;
   margin-bottom: 14px;
+  min-width: 0;
 }
 
 .skins-box h2 {
@@ -426,6 +417,7 @@ button {
   padding: 11px 7px;
   text-align: left;
   white-space: nowrap;
+  font-size: 10px;
 }
 
 .skins-table td {
@@ -443,13 +435,124 @@ button {
   line-height: 1.5;
 }
 
-@media (max-width: 390px) {
+/* WEEKLY SKINS LEADERBOARD FIX */
+
+#skinsWeeklySummary:empty {
+  display: none !important;
+}
+
+#skinsWeeklySummary {
+  margin-bottom: 14px;
+}
+
+#skinsWeeklyLeaders {
+  font-size: 12px;
+}
+
+#skinsWeeklyLeaders tr {
+  display: table-row;
+}
+
+#skinsWeeklyLeaders td {
+  display: table-cell;
+  padding: 12px 5px;
+  border-bottom: 1px solid #bda16633;
+}
+
+#skinsWeeklyLeaders td:first-child {
+  color: #e8c879;
+  font-weight: 800;
+}
+
+#skinsWeeklyLeaders td:nth-child(2) {
+  overflow-wrap: anywhere;
+}
+
+#skinsWeeklyLeaders td:nth-child(3),
+#skinsWeeklyLeaders td:nth-child(4) {
+  text-align: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+#skinsWeeklyLeaders td:last-child {
+  color: #e8c879;
+  font-weight: 800;
+}
+
+#skinsLeadersCard[hidden] {
+  display: none !important;
+}
+
+/* INDIVIDUAL SEASON STANDINGS FIX */
+
+#sglAppStandings .app-data-table {
+  width: 100%;
+  table-layout: auto;
+  font-size: 11px !important;
+}
+
+#sglAppStandings .app-data-table th,
+#sglAppStandings .app-data-table td {
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+}
+
+#sglAppStandings .app-data-table th {
+  font-size: 9px !important;
+  letter-spacing: 0;
+}
+
+#sglAppStandings .app-data-table td:first-child {
+  white-space: nowrap !important;
+  overflow-wrap: normal !important;
+}
+
+#sglAppStandings .app-data-table td:nth-child(2) {
+  overflow-wrap: anywhere;
+}
+
+#sglAppStandings .panel:nth-child(2)
+.app-data-table td:nth-child(3) {
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}
+
+#sglAppStandings .panel:nth-child(2)
+.app-data-table td:nth-child(4),
+
+#sglAppStandings .panel:nth-child(2)
+.app-data-table td:nth-child(5),
+
+#sglAppStandings .panel:nth-child(2)
+.app-data-table td:nth-child(6) {
+  white-space: nowrap !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+  font-variant-numeric: tabular-nums;
+}
+
+#sglAppStandings .panel:nth-child(2)
+.app-data-table td:nth-child(6),
+
+#sglAppStandings .panel:nth-child(2)
+.app-data-table th:nth-child(6) {
+  min-width: 43px;
+  text-align: right;
+  white-space: nowrap !important;
+}
+
+/* MOBILE */
+
+@media (max-width: 430px) {
+
   .page-head h1,
   .skins-header h1 {
     font-size: 26px;
   }
 
-  .panel {
+  .panel,
+  .skins-box {
     padding: 12px;
   }
 
@@ -457,7 +560,25 @@ button {
   .skins-content {
     padding: 12px;
   }
+
+  #sglAppStandings .panel:nth-child(2) {
+    padding: 10px;
+  }
+
+  #sglAppStandings .panel:nth-child(2)
+  .app-data-table {
+    font-size: 10.5px !important;
+  }
+
+  #sglAppStandings .panel:nth-child(2)
+  .app-data-table th,
+  #sglAppStandings .panel:nth-child(2)
+  .app-data-table td {
+    padding-left: 3px !important;
+    padding-right: 3px !important;
+  }
 }
+
 </style>
 </head>
 
@@ -468,12 +589,12 @@ button {
 <!-- HOME -->
 
 <section id="home" class="screen active" aria-label="Home">
+
   <div class="art">
 
     <img
       src="tgsl_assets/tgsl-home-art.png"
-      alt="Taylorville SGL home screen"
-    >
+      alt="Taylorville SGL home screen">
 
     <button
       class="hit"
@@ -532,11 +653,13 @@ button {
     </button>
 
   </div>
+
 </section>
 
 <!-- STANDINGS -->
 
 <section id="standings" class="screen">
+
   <header class="page-head">
     <button class="back" onclick="show('home')">‹</button>
     <h1>League Standings</h1>
@@ -545,14 +668,18 @@ button {
 
   <div class="body">
     <div id="sglAppStandings">
-      <div class="panel">Loading league standings…</div>
+      <div class="panel">
+        Loading league standings…
+      </div>
     </div>
   </div>
+
 </section>
 
 <!-- GROSS SKINS -->
 
 <section id="skins" class="screen">
+
   <header class="skins-header">
     <button class="skins-back" onclick="show('home')">‹</button>
     <h1>Gross Skins</h1>
@@ -562,12 +689,15 @@ button {
   <div class="skins-content">
 
     <div class="skins-tabs">
+
       <button id="skinsWeeklyBtn" class="active">
         Weekly Skins
       </button>
+
       <button id="skinsSeasonBtn">
         Season Skins
       </button>
+
     </div>
 
     <label class="week-label" for="skinsWeek">
@@ -585,18 +715,50 @@ button {
       Loading skins results…
     </div>
 
-    <div id="skinsWeeklySummary" class="skins-box"></div>
-    <div id="skinsWeeklyLeaders" class="skins-box"></div>
+    <div id="skinsWeeklySummary"></div>
+
+    <!-- CORRECTED WEEKLY LEADERS TABLE -->
+
+    <div class="skins-box" id="skinsLeadersCard">
+
+      <h2>Weekly Skins Leaders</h2>
+
+      <div class="skins-table-wrap">
+
+        <table class="skins-table">
+
+          <thead>
+            <tr>
+              <th>POS</th>
+              <th>PLAYER</th>
+              <th>WINS</th>
+              <th>SKINS</th>
+            </tr>
+          </thead>
+
+          <tbody id="skinsWeeklyLeaders"></tbody>
+
+        </table>
+
+      </div>
+
+    </div>
 
     <div class="skins-box">
+
       <h2>Skins Results</h2>
 
       <div class="skins-table-wrap">
+
         <table class="skins-table">
+
           <thead id="skinsHead"></thead>
           <tbody id="skinsBody"></tbody>
+
         </table>
+
       </div>
+
     </div>
 
     <div
@@ -605,11 +767,13 @@ button {
     </div>
 
   </div>
+
 </section>
 
 <!-- PAR 3 -->
 
 <section id="par3" class="screen">
+
   <header class="page-head">
     <button class="back" onclick="show('home')">‹</button>
     <h1>Par 3 Challenge</h1>
@@ -618,14 +782,18 @@ button {
 
   <div class="body">
     <div id="sglAppPar3">
-      <div class="panel">Loading Par 3 results…</div>
+      <div class="panel">
+        Loading Par 3 results…
+      </div>
     </div>
   </div>
+
 </section>
 
 <!-- TEAMS -->
 
 <section id="teams" class="screen">
+
   <header class="page-head">
     <button class="back" onclick="show('home')">‹</button>
     <h1>Team Standings</h1>
@@ -634,14 +802,18 @@ button {
 
   <div class="body">
     <div id="sglAppTeams">
-      <div class="panel">Loading team standings…</div>
+      <div class="panel">
+        Loading team standings…
+      </div>
     </div>
   </div>
+
 </section>
 
 <!-- ARCHIVES -->
 
 <section id="archives" class="screen">
+
   <header class="page-head">
     <button class="back" onclick="show('home')">‹</button>
     <h1>Results &amp; Archives</h1>
@@ -650,14 +822,18 @@ button {
 
   <div class="body">
     <div id="sglAppArchives">
-      <div class="panel">Loading tournament results…</div>
+      <div class="panel">
+        Loading tournament results…
+      </div>
     </div>
   </div>
+
 </section>
 
 <!-- LIVE -->
 
 <section id="live" class="screen">
+
   <header class="page-head">
     <button class="back" onclick="show('home')">‹</button>
     <h1>Watch Live</h1>
@@ -665,7 +841,9 @@ button {
   </header>
 
   <div class="body">
+
     <div class="panel">
+
       <h2>Live Golf Broadcast</h2>
 
       <p class="muted">
@@ -676,13 +854,17 @@ button {
       <a class="link" href="watch-live.html">
         Open Live Stream
       </a>
+
     </div>
+
   </div>
+
 </section>
 
 <!-- LEAGUE INFORMATION -->
 
 <section id="info" class="screen">
+
   <header class="page-head">
     <button class="back" onclick="show('home')">‹</button>
     <h1>League Information</h1>
@@ -690,7 +872,9 @@ button {
   </header>
 
   <div class="body">
+
     <div class="panel">
+
       <h2>League Resources</h2>
 
       <a class="link" href="index.html">
@@ -704,13 +888,17 @@ button {
       <a class="link" href="watch-live.html">
         Watch Live Golf
       </a>
+
     </div>
+
   </div>
+
 </section>
 
 <!-- MORE -->
 
 <section id="more" class="screen">
+
   <header class="page-head">
     <button class="back" onclick="show('home')">‹</button>
     <h1>More</h1>
@@ -718,7 +906,9 @@ button {
   </header>
 
   <div class="body">
+
     <div class="panel">
+
       <h2>League Pages</h2>
 
       <button
@@ -755,8 +945,11 @@ button {
         onclick="show('info')">
         League Information
       </button>
+
     </div>
+
   </div>
+
 </section>
 
 </main>
@@ -764,6 +957,7 @@ button {
 <!-- BOTTOM NAVIGATION -->
 
 <nav class="nav" aria-label="Main navigation">
+
   <div class="nav-inner">
 
     <button
@@ -802,11 +996,13 @@ button {
     </button>
 
   </div>
+
 </nav>
 
 <!-- APP NAVIGATION -->
 
 <script>
+
 function show(id) {
   const screen = document.getElementById(id);
 
@@ -845,6 +1041,80 @@ const initialScreen = location.hash.slice(1);
 if (initialScreen) {
   show(initialScreen);
 }
+
+/* HIDE EMPTY SKINS PANELS */
+
+(function () {
+
+  const leaders =
+    document.getElementById("skinsWeeklyLeaders");
+
+  const summary =
+    document.getElementById("skinsWeeklySummary");
+
+  const card =
+    document.getElementById("skinsLeadersCard");
+
+  const weeklyButton =
+    document.getElementById("skinsWeeklyBtn");
+
+  const seasonButton =
+    document.getElementById("skinsSeasonBtn");
+
+  let weeklyMode = true;
+
+  function updateSkinsLayout() {
+
+    const hasRows =
+      leaders.querySelector("tr") !== null;
+
+    const leadersVisible =
+      leaders.style.display !== "none" &&
+      !leaders.hidden;
+
+    card.hidden =
+      !weeklyMode ||
+      !hasRows ||
+      !leadersVisible;
+
+    if (!summary.textContent.trim()) {
+      summary.style.display = "none";
+    } else if (weeklyMode) {
+      summary.style.removeProperty("display");
+    }
+  }
+
+  weeklyButton.addEventListener("click", () => {
+    weeklyMode = true;
+    setTimeout(updateSkinsLayout, 0);
+  });
+
+  seasonButton.addEventListener("click", () => {
+    weeklyMode = false;
+    setTimeout(updateSkinsLayout, 0);
+  });
+
+  const observer = new MutationObserver(
+    updateSkinsLayout
+  );
+
+  observer.observe(leaders, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["style", "hidden"]
+  });
+
+  observer.observe(summary, {
+    childList: true,
+    subtree: true,
+    characterData: true
+  });
+
+  updateSkinsLayout();
+
+})();
+
 </script>
 
 <!-- LIVE LEAGUE DATA -->
