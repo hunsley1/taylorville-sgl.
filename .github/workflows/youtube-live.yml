@@ -1,10 +1,9 @@
-
 name: TGSL YouTube Live Status
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "*/5 * * * *"
 
 permissions:
   contents: write
@@ -18,8 +17,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout website
+      - name: Checkout latest website
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
 
       - name: Check YouTube livestream
         env:
@@ -31,10 +33,11 @@ jobs:
           import urllib.parse
           import urllib.request
           from datetime import datetime, timezone
+          from pathlib import Path
 
           CHANNEL = "UC-WJOLQudbw8xO7WclLjd2Q"
           KEY = os.environ.get("YOUTUBE_API_KEY", "")
-          STATUS = "youtube-live.json"
+          STATUS = Path("youtube-live.json")
           KNOWN_VIDEO = "bZStCjbwdXg"
 
           if not KEY:
@@ -61,66 +64,80 @@ jobs:
               ) as response:
                   return json.load(response)
 
-          def is_live(video_id):
-              if not video_id:
-                  return False
+          def find_live(video_ids):
+              ids = list(dict.fromkeys(
+                  v for v in video_ids if v
+              ))
+
+              if not ids:
+                  return ""
 
               data = youtube("videos", {
                   "part": "snippet,liveStreamingDetails",
-                  "id": video_id
+                  "id": ",".join(ids[:50])
               })
 
               for item in data.get("items", []):
-                  if item.get("snippet", {}).get(
-                      "channelId"
-                  ) != CHANNEL:
+                  snippet = item.get("snippet", {})
+
+                  if snippet.get("channelId") != CHANNEL:
                       continue
 
                   details = item.get(
                       "liveStreamingDetails", {}
                   )
 
-                  actual_start = details.get(
-                      "actualStartTime"
-                  )
+                  if (
+                      details.get("actualStartTime")
+                      and not details.get("actualEndTime")
+                  ):
+                      return item.get("id", "")
 
-                  actual_end = details.get(
-                      "actualEndTime"
-                  )
+              return ""
 
-                  return bool(
-                      actual_start and not actual_end
-                  )
+          previous = {}
 
-              return False
-
-          previous_video = ""
-
-          if os.path.exists(STATUS):
+          if STATUS.exists():
               try:
-                  with open(
-                      STATUS, encoding="utf-8"
-                  ) as f:
-                      previous_video = json.load(
-                          f
-                      ).get("videoId", "")
+                  previous = json.loads(
+                      STATUS.read_text(encoding="utf-8")
+                  )
               except (ValueError, OSError):
                   pass
 
-          video_id = ""
+          video_id = find_live([
+              previous.get("videoId", ""),
+              KNOWN_VIDEO
+          ])
 
-          # Check known broadcasts first.
-          candidates = list(dict.fromkeys(
-              [previous_video, KNOWN_VIDEO]
-          ))
-
-          for candidate in candidates:
-              if is_live(candidate):
-                  video_id = candidate
-                  break
-
-          # Discover new livestreams automatically.
+          # Discover recent broadcasts at low API cost.
           if not video_id:
+              uploads = "UU" + CHANNEL[2:]
+
+              data = youtube("playlistItems", {
+                  "part": "contentDetails",
+                  "playlistId": uploads,
+                  "maxResults": 25
+              })
+
+              candidates = [
+                  item.get("contentDetails", {}).get(
+                      "videoId", ""
+                  )
+                  for item in data.get("items", [])
+              ]
+
+              video_id = find_live(candidates)
+
+          # Fallback discovery for broadcasts that
+          # are not yet listed in the uploads playlist.
+          now = datetime.now(timezone.utc)
+
+          if not video_id and (
+              now.minute % 15 < 5
+              or os.environ.get("GITHUB_EVENT_NAME")
+                 == "workflow_dispatch"
+          ):
               data = youtube("search", {
                   "part": "snippet",
                   "channelId": CHANNEL,
@@ -129,40 +146,89 @@ jobs:
                   "maxResults": 10
               })
 
-              for item in data.get("items", []):
-                  candidate = item.get(
-                      "id", {}
-                  ).get("videoId", "")
+              candidates = [
+                  item.get("id", {}).get("videoId", "")
+                  for item in data.get("items", [])
+              ]
 
-                  if is_live(candidate):
-                      video_id = candidate
-                      break
+              video_id = find_live(candidates)
 
           result = {
               "live": bool(video_id),
               "videoId": video_id,
               "channelId": CHANNEL,
-              "checkedAt": datetime.now(
-                  timezone.utc
-              ).isoformat()
+              "checkedAt": now.isoformat()
           }
 
-          with open(
-              STATUS, "w", encoding="utf-8"
-          ) as f:
-              json.dump(result, f, indent=2)
+          changed = (
+              previous.get("live") != result["live"]
+              or previous.get("videoId") != video_id
+              or previous.get("channelId") != CHANNEL
+          )
+
+          # Refresh the timestamp periodically without
+          # creating a commit every five minutes.
+          refresh = True
+
+          try:
+              last_check = datetime.fromisoformat(
+                  previous.get("checkedAt", "")
+              )
+
+              refresh = (
+                  now - last_check
+              ).total_seconds() >= 1800
+
+          except (ValueError, TypeError):
+              pass
+
+          if changed or refresh:
+              STATUS.write_text(
+                  json.dumps(result, indent=2) + "\n",
+                  encoding="utf-8"
+              )
 
           print(json.dumps(result, indent=2))
           PY
 
-      - name: Commit status if changed
+      - name: Publish livestream status
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add youtube-live.json
 
-          if ! git diff --cached --quiet; then
-            git commit -m "Update TGSL YouTube live status"
-            git push
+          if git diff --cached --quiet; then
+            echo "Livestream status unchanged."
+            exit 0
           fi
+
+          cp youtube-live.json /tmp/tgsl-live-status.json
+
+          for attempt in 1 2 3 4 5; do
+            echo "Publishing attempt $attempt"
+
+            git fetch origin main
+            git reset --hard origin/main
+
+            cp /tmp/tgsl-live-status.json youtube-live.json
+
+            git add youtube-live.json
+
+            if git diff --cached --quiet; then
+              echo "Status already published."
+              exit 0
+            fi
+
+            git commit -m "Update TGSL YouTube live status"
+
+            if git push origin HEAD:main; then
+              echo "Livestream status published."
+              exit 0
+            fi
+
+            sleep $((attempt * 3))
+          done
+
+          echo "Unable to publish livestream status."
+          exit 1
